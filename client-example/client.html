@@ -1,0 +1,42 @@
+<html>
+  <head>
+    <title>Client WebRTC-Chord-Platform</title>
+    <meta content="">
+    <style></style>
+    <script type="text/javascript" src="webrtc-chord-platform.js"></script>
+  </head>
+  <body>
+
+	<h1>Chord client example</h1>
+	<label id='myId' ></label><br>
+
+	<textarea id='fingerTable' rows='6' cols='50' readonly></textarea>
+
+  <script type="text/javascript">
+  	var myId;
+  	var textArea = document.getElementById('fingerTable');
+  	textArea.value = "";
+
+  	var chord = new Chord({debug: true, url: "http://localhost:8080", storage: sessionStorage});
+  	chord.join(function(id) {
+  	  myId = id;
+  	  document.getElementById('myId').innerHTML = id;
+
+  	  chord.getFingerTable().on('update', function(predecessor, successors) {
+  	    try {
+  	      textArea.value = predecessor;
+  	      for (var i = 0; i < Object.keys(successors).length; i++) {
+  	        textArea.value += "\n" + successors[i].start + ": " + successors[i].node;
+  	      }
+  	    } catch (e) {
+  	      console.log(e);
+  	    }
+  	  });
+  	});
+  	chord.on('broadcast', function(data) {
+  	  console.log("This is my callback broadcast");
+  	  console.log(data);
+  	});
+  </script>
+  </body>
+</html>
