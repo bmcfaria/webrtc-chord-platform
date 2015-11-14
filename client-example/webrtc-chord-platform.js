@@ -44,12 +44,50 @@
 /* 0 */
 /***/ function(module, exports, __webpack_require__) {
 
+	/*
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+
+	    This file is part of WebRTC Chord Platform.
+
+	    WebRTC Chord Platform is free software: you can redistribute it and/or modify
+	    it under the terms of the GNU General Public License as published by
+	    the Free Software Foundation, either version 3 of the License, or
+	    (at your option) any later version.
+
+	    WebRTC Chord Platform is distributed in the hope that it will be useful,
+	    but WITHOUT ANY WARRANTY; without even the implied warranty of
+	    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	    GNU General Public License for more details.
+
+	    You should have received a copy of the GNU General Public License
+	    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
+	*/
+
 	window.Chord = __webpack_require__(1);
 
 
 /***/ },
 /* 1 */
 /***/ function(module, exports, __webpack_require__) {
+
+	/*
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+
+	    This file is part of WebRTC Chord Platform.
+
+	    WebRTC Chord Platform is free software: you can redistribute it and/or modify
+	    it under the terms of the GNU General Public License as published by
+	    the Free Software Foundation, either version 3 of the License, or
+	    (at your option) any later version.
+
+	    WebRTC Chord Platform is distributed in the hope that it will be useful,
+	    but WITHOUT ANY WARRANTY; without even the implied warranty of
+	    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	    GNU General Public License for more details.
+
+	    You should have received a copy of the GNU General Public License
+	    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
+	*/
 
 	var FingerTable = __webpack_require__(2);
 	var SignallingChannel = __webpack_require__(3);
@@ -1573,6 +1611,25 @@
 /* 2 */
 /***/ function(module, exports, __webpack_require__) {
 
+	/*
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+
+	    This file is part of WebRTC Chord Platform.
+
+	    WebRTC Chord Platform is free software: you can redistribute it and/or modify
+	    it under the terms of the GNU General Public License as published by
+	    the Free Software Foundation, either version 3 of the License, or
+	    (at your option) any later version.
+
+	    WebRTC Chord Platform is distributed in the hope that it will be useful,
+	    but WITHOUT ANY WARRANTY; without even the implied warranty of
+	    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	    GNU General Public License for more details.
+
+	    You should have received a copy of the GNU General Public License
+	    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
+	*/
+
 	var bigInt = __webpack_require__(40);
 
 	function FingerTable(debug) {
@@ -2096,6 +2153,25 @@
 /* 3 */
 /***/ function(module, exports, __webpack_require__) {
 
+	/*
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+
+	    This file is part of WebRTC Chord Platform.
+
+	    WebRTC Chord Platform is free software: you can redistribute it and/or modify
+	    it under the terms of the GNU General Public License as published by
+	    the Free Software Foundation, either version 3 of the License, or
+	    (at your option) any later version.
+
+	    WebRTC Chord Platform is distributed in the hope that it will be useful,
+	    but WITHOUT ANY WARRANTY; without even the implied warranty of
+	    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	    GNU General Public License for more details.
+
+	    You should have received a copy of the GNU General Public License
+	    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
+	*/
+
 	// a prefix we add to normal text messages (not part of signalling but using the same channel)
 	var TXT_MSG_PREFIX = "[TextMessage]";
 
@@ -2352,6 +2428,25 @@
 /***/ },
 /* 4 */
 /***/ function(module, exports, __webpack_require__) {
+
+	/*
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+
+	    This file is part of WebRTC Chord Platform.
+
+	    WebRTC Chord Platform is free software: you can redistribute it and/or modify
+	    it under the terms of the GNU General Public License as published by
+	    the Free Software Foundation, either version 3 of the License, or
+	    (at your option) any later version.
+
+	    WebRTC Chord Platform is distributed in the hope that it will be useful,
+	    but WITHOUT ANY WARRANTY; without even the implied warranty of
+	    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	    GNU General Public License for more details.
+
+	    You should have received a copy of the GNU General Public License
+	    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
+	*/
 
 	function MyPeerConnection(isMaster, configuration, options) {
 	    "use strict";
@@ -10158,7 +10253,7 @@
 	 */
 
 	var url = __webpack_require__(42);
-	var eio = __webpack_require__(51);
+	var eio = __webpack_require__(49);
 	var Socket = __webpack_require__(44);
 	var Emitter = __webpack_require__(52);
 	var parser = __webpack_require__(45);
@@ -10166,8 +10261,8 @@
 	var bind = __webpack_require__(53);
 	var object = __webpack_require__(54);
 	var debug = __webpack_require__(46)('socket.io-client:manager');
-	var indexOf = __webpack_require__(55);
-	var Backoff = __webpack_require__(56);
+	var indexOf = __webpack_require__(56);
+	var Backoff = __webpack_require__(55);
 
 	/**
 	 * Module exports
@@ -11061,8 +11156,8 @@
 	var json = __webpack_require__(60);
 	var isArray = __webpack_require__(59);
 	var Emitter = __webpack_require__(52);
-	var binary = __webpack_require__(49);
-	var isBuf = __webpack_require__(50);
+	var binary = __webpack_require__(50);
+	var isBuf = __webpack_require__(51);
 
 	/**
 	 * Protocol version.
@@ -11662,6 +11757,14 @@
 /* 49 */
 /***/ function(module, exports, __webpack_require__) {
 
+	
+	module.exports =  __webpack_require__(62);
+
+
+/***/ },
+/* 50 */
+/***/ function(module, exports, __webpack_require__) {
+
 	/* WEBPACK VAR INJECTION */(function(global) {/*global Blob,File*/
 
 	/**
@@ -11669,7 +11772,7 @@
 	 */
 
 	var isArray = __webpack_require__(59);
-	var isBuf = __webpack_require__(50);
+	var isBuf = __webpack_require__(51);
 
 	/**
 	 * Replaces every Buffer | ArrayBuffer in packet with a numbered placeholder.
@@ -11807,7 +11910,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 50 */
+/* 51 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {
@@ -11825,14 +11928,6 @@
 	}
 
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 51 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	module.exports =  __webpack_require__(62);
-
 
 /***/ },
 /* 52 */
@@ -12127,21 +12222,6 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	
-	var indexOf = [].indexOf;
-
-	module.exports = function(arr, obj){
-	  if (indexOf) return arr.indexOf(obj);
-	  for (var i = 0; i < arr.length; ++i) {
-	    if (arr[i] === obj) return i;
-	  }
-	  return -1;
-	};
-
-/***/ },
-/* 56 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
 	/**
 	 * Expose `Backoff`.
 	 */
@@ -12227,6 +12307,21 @@
 	};
 
 
+
+/***/ },
+/* 56 */
+/***/ function(module, exports, __webpack_require__) {
+
+	
+	var indexOf = [].indexOf;
+
+	module.exports = function(arr, obj){
+	  if (indexOf) return arr.indexOf(obj);
+	  for (var i = 0; i < arr.length; ++i) {
+	    if (arr[i] === obj) return i;
+	  }
+	  return -1;
+	};
 
 /***/ },
 /* 57 */
@@ -13357,8 +13452,8 @@
 
 	var transports = __webpack_require__(67);
 	var Emitter = __webpack_require__(52);
-	var debug = __webpack_require__(72)('engine.io-client:socket');
-	var index = __webpack_require__(55);
+	var debug = __webpack_require__(73)('engine.io-client:socket');
+	var index = __webpack_require__(56);
 	var parser = __webpack_require__(65);
 	var parseuri = __webpack_require__(68);
 	var parsejson = __webpack_require__(69);
@@ -14075,7 +14170,7 @@
 	 * Module dependencies.
 	 */
 
-	var keys = __webpack_require__(73);
+	var keys = __webpack_require__(72);
 	var hasBinary = __webpack_require__(71);
 	var sliceBuffer = __webpack_require__(78);
 	var base64encoder = __webpack_require__(81);
@@ -15090,6 +15185,31 @@
 
 	
 	/**
+	 * Gets the keys for an object.
+	 *
+	 * @return {Array} keys
+	 * @api private
+	 */
+
+	module.exports = Object.keys || function keys (obj){
+	  var arr = [];
+	  var has = Object.prototype.hasOwnProperty;
+
+	  for (var i in obj) {
+	    if (has.call(obj, i)) {
+	      arr.push(i);
+	    }
+	  }
+	  return arr;
+	};
+
+
+/***/ },
+/* 73 */
+/***/ function(module, exports, __webpack_require__) {
+
+	
+	/**
 	 * This is the web browser implementation of `debug()`.
 	 *
 	 * Expose `debug()` as the module.
@@ -15238,31 +15358,6 @@
 
 
 /***/ },
-/* 73 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	/**
-	 * Gets the keys for an object.
-	 *
-	 * @return {Array} keys
-	 * @api private
-	 */
-
-	module.exports = Object.keys || function keys (obj){
-	  var arr = [];
-	  var has = Object.prototype.hasOwnProperty;
-
-	  for (var i in obj) {
-	    if (has.call(obj, i)) {
-	      arr.push(i);
-	    }
-	  }
-	  return arr;
-	};
-
-
-/***/ },
 /* 74 */
 /***/ function(module, exports, __webpack_require__) {
 
@@ -15316,7 +15411,7 @@
 	var Polling = __webpack_require__(84);
 	var Emitter = __webpack_require__(52);
 	var inherit = __webpack_require__(86);
-	var debug = __webpack_require__(72)('engine.io-client:polling-xhr');
+	var debug = __webpack_require__(73)('engine.io-client:polling-xhr');
 
 	/**
 	 * Module exports.
@@ -15947,7 +16042,7 @@
 	var parser = __webpack_require__(65);
 	var parseqs = __webpack_require__(70);
 	var inherit = __webpack_require__(86);
-	var debug = __webpack_require__(72)('engine.io-client:websocket');
+	var debug = __webpack_require__(73)('engine.io-client:websocket');
 
 	/**
 	 * `ws` exposes a WebSocket-compatible interface in
@@ -16828,7 +16923,7 @@
 	var parseqs = __webpack_require__(70);
 	var parser = __webpack_require__(65);
 	var inherit = __webpack_require__(86);
-	var debug = __webpack_require__(72)('engine.io-client:polling');
+	var debug = __webpack_require__(73)('engine.io-client:polling');
 
 	/**
 	 * Module exports.

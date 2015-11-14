@@ -1,3 +1,22 @@
+/*
+    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+
+    This file is part of WebRTC Chord Platform.
+
+    WebRTC Chord Platform is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    WebRTC Chord Platform is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 var fs = require('fs');
 
 var SHA1 = require("crypto-js/sha1");
@@ -12,8 +31,6 @@ var heartbeatTable = {};
 var myId = {};
 var fingerTable = {};
 var chord = {};
-
-var sessionStorage;
 
 var on = function(event, cb) {
     eventHandler[event] = cb;
@@ -63,23 +80,6 @@ var start = function(io, config) {
 
     myId = getBigIntHash(0, m);
     numbers.push(myId.toString(16));
-
-
-    function MySessionStorage() {
-
-        var storage = {};
-
-        this.setItem = function(hash, data) {
-            storage[hash] = data;
-        };
-
-        this.getItem = function(hash) {
-            return storage[hash];
-        };
-    }
-
-    //Simulate client sessionStorage
-    sessionStorage = new MySessionStorage();
 
     chord = new Chord({
         //debug: debug,

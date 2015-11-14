@@ -129,9 +129,8 @@ chord.getValue(hash, function(value) {
 The `client-example/client.html` file is an example of a possible client.
 
 
+# Copyright and License
 
----
+Copyright 2015 Bruno Faria, Instituto de Telecomunicações
 
-![alt text](https://www.it.pt/img/logo-IT-header.png "Instituto de Telecomunicações")
-
-Copyright © 2015
+Licensed under the GPLv3
