@@ -1,5 +1,5 @@
 /*
-    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+    Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
     This file is part of WebRTC Chord Platform.
 

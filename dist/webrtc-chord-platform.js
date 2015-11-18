@@ -45,7 +45,7 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
-	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
 	    This file is part of WebRTC Chord Platform.
 
@@ -71,7 +71,7 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
-	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
 	    This file is part of WebRTC Chord Platform.
 
@@ -92,8 +92,8 @@
 	var FingerTable = __webpack_require__(2);
 	var SignallingChannel = __webpack_require__(3);
 	var MyPeerConnection = __webpack_require__(4);
-	var CryptoJS = __webpack_require__(5);
-	var io = __webpack_require__(6);
+	var CryptoJS = __webpack_require__(7);
+	var io = __webpack_require__(5);
 
 	function Chord(config) {
 
@@ -1612,7 +1612,7 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
-	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
 	    This file is part of WebRTC Chord Platform.
 
@@ -1630,7 +1630,7 @@
 	    along with WebRTC Chord Platform.  If not, see <http://www.gnu.org/licenses/>.
 	*/
 
-	var bigInt = __webpack_require__(40);
+	var bigInt = __webpack_require__(6);
 
 	function FingerTable(debug) {
 
@@ -2154,7 +2154,7 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
-	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
 	    This file is part of WebRTC Chord Platform.
 
@@ -2430,7 +2430,7 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
-	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+	    Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
 	    This file is part of WebRTC Chord Platform.
 
@@ -2660,10 +2660,716 @@
 /* 5 */
 /***/ function(module, exports, __webpack_require__) {
 
+	
+	module.exports = __webpack_require__(41);
+
+
+/***/ },
+/* 6 */
+/***/ function(module, exports, __webpack_require__) {
+
+	"use strict";
+	var bigInt = (function () {
+	    var base = 10000000, logBase = 7, zeros = "0000000";
+	    var sign = {
+	        positive: false,
+	        negative: true
+	    };
+
+	    function BigInteger(value, sign) {
+	        this.value = value;
+	        this.sign = sign;
+	    }
+
+	    function trim(value) {
+	        while (value[value.length - 1] === 0 && value.length > 1) value.pop();
+	        return value;
+	    }
+
+	    function fastAdd(a, b) {
+	        var sign = b < 0;
+	        if (a.sign !== sign) {
+	            if(sign) return fastSubtract(a.abs(), -b);
+	            return fastSubtract(a.abs(), b).negate();
+	        }
+	        if (sign) b = -b;
+	        var value = a.value,
+	            result = [],
+	            carry = 0;
+	        for (var i = 0; i < value.length || carry > 0; i++) {
+	            var sum = (value[i] || 0) + (i > 0 ? 0 : b) + carry;
+	            carry = sum >= base ? 1 : 0;
+	            result.push(sum % base);
+	        }
+	        return new BigInteger(trim(result), a.sign);
+	    }
+
+	    function fastSubtract(a, b) {
+	        var value = a.value;
+	        if (value.length === 1) {
+	            value = value[0];
+	            if (a.sign) value = -value;
+	            return new BigInteger([Math.abs(value - b)], (value - b) < 0);
+	        }
+	        if (a.sign !== (b < 0)) return fastAdd(a, -b);
+	        var sign = false;
+	        if (a.sign) sign = true;
+	        if (value.length === 1 && value[0] < b) return new BigInteger([b - value[0]], !sign);
+	        if (sign) b = -b;
+	        var result = [],
+	            borrow = 0;
+	        for (var i = 0; i < value.length; i++) {
+	            var tmp = value[i] - borrow - (i > 0 ? 0 : b);
+	            borrow = tmp < 0 ? 1 : 0;
+	            result.push((borrow * base) + tmp);
+	        }
+
+	        return new BigInteger(trim(result), sign);
+	    }
+
+	    function fastMultiplyInternal(value, lambda) {
+	        var result = [];
+	        var carry = 0;
+	        for (var i = 0; i < value.length; i++) {
+	            carry += lambda * value[i];
+	            var q = Math.floor(carry / base);
+	            result[i] = (carry - q * base) | 0;
+	            carry = q;
+	        }
+	        result[value.length] = carry | 0;
+	        return result;
+	    }
+
+	    function fastMultiply(a, b) {
+	        var result = fastMultiplyInternal(a.value, b < 0 ? -b : b);
+	        return new BigInteger(trim(result), b < 0 ? !a.sign : a.sign);
+	    }
+
+	    function fastDivModInternal(value, lambda) {
+	        var quotient = [];
+	        for (var i = 0; i < value.length; i++) {
+	            quotient[i] = 0;
+	        }
+	        var remainder = 0;
+	        for (var i = value.length - 1; i >= 0; i--) {
+	            var divisor = remainder * base + value[i];
+	            var q = Math.floor(divisor / lambda);
+	            remainder = divisor - q * lambda;
+	            quotient[i] = q | 0;
+	        }
+	        return {
+	          quotient: quotient,
+	          remainder: remainder | 0
+	        };
+	    }
+
+	    function fastDivMod(a, b) {
+	        if (b === 0) throw new Error("Cannot divide by zero.");
+	        var result = fastDivModInternal(a.value, b < 0 ? -b : b);
+	        return {
+	            quotient: new BigInteger(trim(result.quotient), b < 0 ? !a.sign : a.sign),
+	            remainder: new BigInteger([result.remainder], a.sign)
+	        };
+	    }
+
+	    function isSmall(n) {
+	        return ((typeof n === "number" || typeof n === "string") && +Math.abs(n) <= base) ||
+	            (n instanceof BigInteger && n.value.length <= 1);
+	    }
+
+	    BigInteger.prototype.negate = function () {
+	        return new BigInteger(this.value, !this.sign);
+	    };
+	    BigInteger.prototype.abs = function () {
+	        return new BigInteger(this.value, sign.positive);
+	    };
+	    BigInteger.prototype.add = function (n) {
+	        if(isSmall(n)) return fastAdd(this, +n);
+	        n = parseInput(n);
+	        if (this.sign !== n.sign) {
+	            if (this.sign === sign.positive) return this.abs().subtract(n.abs());
+	            return n.abs().subtract(this.abs());
+	        }
+	        var a = this.value, b = n.value;
+	        var result = [],
+	            carry = 0,
+	            length = Math.max(a.length, b.length);
+	        for (var i = 0; i < length || carry > 0; i++) {
+	            var sum = (a[i] || 0) + (b[i] || 0) + carry;
+	            carry = sum >= base ? 1 : 0;
+	            result.push(sum % base);
+	        }
+	        return new BigInteger(trim(result), this.sign);
+	    };
+	    BigInteger.prototype.plus = BigInteger.prototype.add;
+
+	    BigInteger.prototype.subtract = function (n) {
+	        if (isSmall(n)) return fastSubtract(this, +n);
+	        n = parseInput(n);
+	        if (this.sign !== n.sign) return this.add(n.negate());
+	        if (this.sign === sign.negative) return n.negate().subtract(this.negate());
+	        if (this.compare(n) < 0) return n.subtract(this).negate();
+	        var a = this.value, b = n.value;
+	        var result = [],
+	            borrow = 0,
+	            length = Math.max(a.length, b.length);
+	        for (var i = 0; i < length; i++) {
+	            var ai = a[i] || 0, bi = b[i] || 0;
+	            var tmp = ai - borrow;
+	            borrow = tmp < bi ? 1 : 0;
+	            result.push((borrow * base) + tmp - bi);
+	        }
+	        return new BigInteger(trim(result), sign.positive);
+	    };
+	    BigInteger.prototype.minus = BigInteger.prototype.subtract;
+
+	    BigInteger.prototype.multiply = function (n) {
+	        if (isSmall(n)) return fastMultiply(this, +n);
+	        n = parseInput(n);
+	        var sign = this.sign !== n.sign;
+
+	        var a = this.value, b = n.value;
+	        var result = [];
+	        for (var i = a.length + b.length; i > 0; i--) {
+	            result.push(0);
+	        }
+	        for (var i = 0; i < a.length; i++) {
+	            var x = a[i];
+	            for (var j = 0; j < b.length; j++) {
+	                var y = b[j];
+	                var product = x * y + result[i+j];
+	                var q = Math.floor(product / base);
+	                result[i+j] = product - q * base;
+	                result[i+j+1] += q;
+	            }
+	        }
+	        return new BigInteger(trim(result), sign);
+	    };
+	    BigInteger.prototype.times = BigInteger.prototype.multiply;
+
+	    BigInteger.prototype.divmod = function (n) {
+	        if (isSmall(n)) return fastDivMod(this, +n);
+	        n = parseInput(n);
+	        var quotientSign = this.sign !== n.sign;
+	        if (n.equals(ZERO)) throw new Error("Cannot divide by zero");
+	        if (this.equals(ZERO)) return {
+	            quotient: new BigInteger([0], sign.positive),
+	            remainder: new BigInteger([0], sign.positive)
+	        };
+	        var a = this.value, b = n.value;
+	        var result = [0];
+	        for (var i = 0; i < b.length; i++) {
+	            result[i] = 0;
+	        }
+	        var divisorMostSignificantDigit = b[b.length - 1];
+	        // normalization
+	        var lambda = Math.ceil(base / 2 / divisorMostSignificantDigit);
+	        var remainder = fastMultiplyInternal(a, lambda);
+	        var divisor = fastMultiplyInternal(b, lambda);
+	        divisorMostSignificantDigit = divisor[b.length - 1];
+	        for (var shift = a.length - b.length; shift >= 0; shift--) {
+	            var quotientDigit = base - 1;
+	            if (remainder[shift + b.length] !== divisorMostSignificantDigit) {
+	                quotientDigit = Math.floor((remainder[shift + b.length] * base + remainder[shift + b.length - 1]) / divisorMostSignificantDigit);
+	            }
+	            // remainder -= quotientDigit * divisor
+	            var carry = 0;
+	            var borrow = 0;
+	            for (var i = 0; i < divisor.length; i++) {
+	                carry += quotientDigit * divisor[i];
+	                var q = Math.floor(carry / base);
+	                borrow += remainder[shift + i] - (carry - q * base);
+	                carry = q;
+	                if (borrow < 0) {
+	                    remainder[shift + i] = (borrow + base) | 0;
+	                    borrow = -1;
+	                } else {
+	                    remainder[shift + i] = borrow | 0;
+	                    borrow = 0;
+	                }
+	            }
+	            while (borrow !== 0) {
+	                quotientDigit -= 1;
+	                var carry = 0;
+	                for (var i = 0; i < divisor.length; i++) {
+	                    carry += remainder[shift + i] - base + divisor[i];
+	                    if (carry < 0) {
+	                        remainder[shift + i] = (carry + base) | 0;
+	                        carry = 0;
+	                    } else {
+	                        remainder[shift + i] = carry | 0;
+	                        carry = +1;
+	                    }
+	                }
+	                borrow += carry;
+	            }
+	            result[shift] = quotientDigit | 0;
+	        }
+	        // denormalization
+	        remainder = fastDivModInternal(remainder, lambda).quotient;
+	        return {
+	            quotient: new BigInteger(trim(result), quotientSign),
+	            remainder: new BigInteger(trim(remainder), this.sign)
+	        };
+	    };
+	    BigInteger.prototype.divide = function (n) {
+	        return this.divmod(n).quotient;
+	    };
+	    BigInteger.prototype.over = BigInteger.prototype.divide;
+
+	    BigInteger.prototype.mod = function (n) {
+	        return this.divmod(n).remainder;
+	    };
+	    BigInteger.prototype.remainder = BigInteger.prototype.mod;
+
+	    BigInteger.prototype.pow = function (n) {
+	        n = parseInput(n);
+	        var a = this, b = n, r = ONE;
+	        if (b.equals(ZERO)) return r;
+	        if (a.equals(ZERO) || b.lesser(ZERO)) return ZERO;
+	        while (true) {
+	            if (b.isOdd()) {
+	                r = r.times(a);
+	            }
+	            b = b.divide(2);
+	            if (b.equals(ZERO)) break;
+	            a = a.times(a);
+	        }
+	        return r;
+	    };
+	    BigInteger.prototype.modPow = function (exp, mod) {
+	        exp = parseInput(exp);
+	        mod = parseInput(mod);
+	        if (mod.equals(ZERO)) throw new Error("Cannot take modPow with modulus 0");
+	        var r = ONE,
+	            base = this.mod(mod);
+	        if (base.equals(ZERO)) return ZERO;
+	        while (exp.greater(0)) {
+	            if (exp.isOdd()) r = r.multiply(base).mod(mod);
+	            exp = exp.divide(2);
+	            base = base.square().mod(mod);
+	        }
+	        return r;
+	    };
+	    BigInteger.prototype.square = function () {
+	        return this.multiply(this);
+	    };
+	    function gcd(a, b) {
+	        a = parseInput(a).abs();
+	        b = parseInput(b).abs();
+	        if (a.equals(b)) return a;
+	        if (a.equals(ZERO)) return b;
+	        if (b.equals(ZERO)) return a;
+	        if (a.isEven()) {
+	            if (b.isOdd()) {
+	                return gcd(a.divide(2), b);
+	            }
+	            return gcd(a.divide(2), b.divide(2)).multiply(2);
+	        }
+	        if (b.isEven()) {
+	            return gcd(a, b.divide(2));
+	        }
+	        if (a.greater(b)) {
+	            return gcd(a.subtract(b).divide(2), b);
+	        }
+	        return gcd(b.subtract(a).divide(2), a);
+	    }
+	    function lcm(a, b) {
+	        a = parseInput(a).abs();
+	        b = parseInput(b).abs();
+	        return a.multiply(b).divide(gcd(a, b));
+	    }
+	    BigInteger.prototype.next = function () {
+	        return fastAdd(this, 1);
+	    };
+	    BigInteger.prototype.prev = function () {
+	        return fastSubtract(this, 1);
+	    };
+	    BigInteger.prototype.compare = function (n) {
+	        var first = this, second = parseInput(n);
+	        if (first.value.length === 1 && second.value.length === 1 && first.value[0] === 0 && second.value[0] === 0) return 0;
+	        if (second.sign !== first.sign) return first.sign === sign.positive ? 1 : -1;
+	        var multiplier = first.sign === sign.positive ? 1 : -1;
+	        var a = first.value, b = second.value,
+	            length = Math.max(a.length, b.length) - 1;
+	        for (var i = length; i >= 0; i--) {
+	            var ai = (a[i] || 0), bi = (b[i] || 0);
+	            if (ai > bi) return 1 * multiplier;
+	            if (bi > ai) return -1 * multiplier;
+	        }
+	        return 0;
+	    };
+
+	    BigInteger.prototype.compareAbs = function (n) {
+	        return this.abs().compare(n.abs());
+	    };
+	    BigInteger.prototype.equals = function (n) {
+	        return this.compare(n) === 0;
+	    };
+	    BigInteger.prototype.notEquals = function (n) {
+	        return !this.equals(n);
+	    };
+	    BigInteger.prototype.lesser = function (n) {
+	        return this.compare(n) < 0;
+	    };
+	    BigInteger.prototype.greater = function (n) {
+	        return this.compare(n) > 0;
+	    };
+	    BigInteger.prototype.greaterOrEquals = function (n) {
+	        return this.compare(n) >= 0;
+	    };
+	    BigInteger.prototype.lesserOrEquals = function (n) {
+	        return this.compare(n) <= 0;
+	    };
+
+	    BigInteger.prototype.compareTo = BigInteger.prototype.compare;
+	    BigInteger.prototype.lt = BigInteger.prototype.lesser;
+	    BigInteger.prototype.leq = BigInteger.prototype.lesserOrEquals;
+	    BigInteger.prototype.gt = BigInteger.prototype.greater;
+	    BigInteger.prototype.geq = BigInteger.prototype.greaterOrEquals;
+	    BigInteger.prototype.eq = BigInteger.prototype.equals;
+	    BigInteger.prototype.neq = BigInteger.prototype.notEquals;
+
+	    function max (a, b) {
+	        a = parseInput(a);
+	        b = parseInput(b);
+	        return a.greater(b) ? a : b;
+	    }
+	    function min (a, b) {
+	        a = parseInput(a);
+	        b = parseInput(b);
+	        return a.lesser(b) ? a : b;
+	    }
+	    BigInteger.prototype.isPositive = function () {
+	        if (this.value.length === 1 && this.value[0] === 0) return false;
+	        return this.sign === sign.positive;
+	    };
+	    BigInteger.prototype.isNegative = function () {
+	        if (this.value.length === 1 && this.value[0] === 0) return false;
+	        return this.sign === sign.negative;
+	    };
+	    BigInteger.prototype.isEven = function () {
+	        return this.value[0] % 2 === 0;
+	    };
+	    BigInteger.prototype.isOdd = function () {
+	        return this.value[0] % 2 === 1;
+	    };
+	    BigInteger.prototype.isUnit = function () {
+	        return this.value.length === 1 && this.value[0] === 1;
+	    };
+	    BigInteger.prototype.isZero = function () {
+	        return this.value.length === 1 && this.value[0] === 0;
+	    };
+	    BigInteger.prototype.isDivisibleBy = function (n) {
+	        n = parseInput(n);
+	        if (n.isZero()) return false;
+	        return this.mod(n).equals(ZERO);
+	    };
+	    BigInteger.prototype.isPrime = function () {
+	        var n = this.abs(),
+	            nPrev = n.prev();
+	        if (n.isUnit()) return false;
+	        if (n.equals(2) || n.equals(3) || n.equals(5)) return true;
+	        if (n.isEven() || n.isDivisibleBy(3) || n.isDivisibleBy(5)) return false;
+	        if (n.lesser(25)) return true;
+	        var a = [2, 3, 5, 7, 11, 13, 17, 19],
+	            b = nPrev,
+	            d, t, i, x;
+	        while (b.isEven()) b = b.divide(2);
+	        for (i = 0; i < a.length; i++) {
+	            x = bigInt(a[i]).modPow(b, n);
+	            if (x.equals(ONE) || x.equals(nPrev)) continue;
+	            for (t = true, d = b; t && d.lesser(nPrev); d = d.multiply(2)) {
+	                x = x.square().mod(n);
+	                if (x.equals(nPrev)) t = false;
+	            }
+	            if (t) return false;
+	        }
+	        return true;
+	    };
+	    function randBetween (a, b) {
+	        a = parseInput(a);
+	        b = parseInput(b);
+	        var low = min(a, b), high = max(a, b);
+	        var range = high.subtract(low);
+	        var length = range.value.length - 1;
+	        var result = [], restricted = true;
+	        for (var i = length; i >= 0; i--) {
+	            var top = restricted ? range.value[i] : base;
+	            var digit = Math.floor(Math.random() * top);
+	            result.unshift(digit);
+	            if (digit < top) restricted = false;
+	        }
+	        return low.add(new BigInteger(result, false));
+	    }
+
+	    var powersOfTwo = [1];
+	    while (powersOfTwo[powersOfTwo.length - 1] <= base) powersOfTwo.push(2 * powersOfTwo[powersOfTwo.length - 1]);
+	    var powers2Length = powersOfTwo.length, highestPower2 = powersOfTwo[powers2Length - 1];
+
+	    BigInteger.prototype.shiftLeft = function (n) {
+	        if (!isSmall(n)) {
+	            if (n.isNegative()) return this.shiftRight(n.abs());
+	            return this.times(bigInt(2).pow(n));
+	        }
+	        n = +n;
+	        if (n < 0) return this.shiftRight(-n);
+	        var result = this;
+	        while (n >= powers2Length) {
+	            result = fastMultiply(result, highestPower2);
+	            n -= powers2Length - 1;
+	        }
+	        return fastMultiply(result, powersOfTwo[n]);
+	    };
+
+	    BigInteger.prototype.shiftRight = function (n) {
+	        var remQuo = undefined;
+	        if (!isSmall(n)) {
+	            if (n.isNegative()) return this.shiftLeft(n.abs());
+	            remQuo = this.divmod(bigInt(2).pow(n));
+	            return remQuo.remainder.compareTo(ZERO) < 0 ? remQuo.quotient.subtract(ONE) : remQuo.quotient;
+	        }
+	        n = +n;
+	        if (n < 0) return this.shiftLeft(-n);
+	        var result = this;
+	        while (n >= powers2Length) {
+	            if (result.equals(ZERO)) return result;
+	            remQuo = fastDivMod(result, highestPower2);
+	            result = remQuo.remainder.compareTo(ZERO) < 0 ? remQuo.quotient.subtract(ONE) : remQuo.quotient;
+	            n -= powers2Length - 1;
+	        }
+	        remQuo = fastDivMod(result, powersOfTwo[n]);
+	        return remQuo.remainder.compareTo(ZERO) < 0 ? remQuo.quotient.subtract(ONE) : remQuo.quotient;
+	    };
+
+	    function bitwise(x, y, fn) {
+	        y = parseInput(y);
+	        var xSign = x.isNegative(), ySign = y.isNegative();
+	        var xRem = xSign ? x.not() : x,
+	            yRem = ySign ? y.not() : y;
+	        var xBits = [], yBits = [];
+	        var xStop = false, yStop = false;
+	        while (!xStop || !yStop) {
+	            if (xRem.isZero()) { // virtual sign extension for simulating two's complement
+	                xStop = true;
+	                xBits.push(xSign ? 1 : 0);
+	            }
+	            else if (xSign) xBits.push(xRem.isEven() ? 1 : 0); // two's complement for negative numbers
+	            else xBits.push(xRem.isEven() ? 0 : 1);
+
+	            if (yRem.isZero()) {
+	                yStop = true;
+	                yBits.push(ySign ? 1 : 0);
+	            }
+	            else if (ySign) yBits.push(yRem.isEven() ? 1 : 0);
+	            else yBits.push(yRem.isEven() ? 0 : 1);
+
+	            xRem = xRem.over(2);
+	            yRem = yRem.over(2);
+	        }
+	        var result = [];
+	        for (var i = 0; i < xBits.length; i++) result.push(fn(xBits[i], yBits[i]));
+	        var sum = bigInt(result.pop()).negate().times(bigInt(2).pow(result.length));
+	        while (result.length) {
+	            sum = sum.add(bigInt(result.pop()).times(bigInt(2).pow(result.length)));
+	        }
+	        return sum;
+	    }
+
+	    BigInteger.prototype.not = function () {
+	        return this.negate().minus(1);
+	    };
+
+	    BigInteger.prototype.and = function (n) {
+	        return bitwise(this, n, function (a, b) { return a & b });
+	    };
+
+	    BigInteger.prototype.or = function (n) {
+	        return bitwise(this, n, function (a, b) { return a | b; });
+	    };
+
+	    BigInteger.prototype.xor = function (n) {
+	        return bitwise(this, n, function (a, b) { return a ^ b });
+	    };
+
+	    BigInteger.prototype.toString = function (radix) {
+	        if (radix === undefined) {
+	            radix = 10;
+	        }
+	        if (radix !== 10) return toBase(this, radix);
+	        var first = this;
+	        var str = "", len = first.value.length;
+	        if (len === 0 || (len === 1 && first.value[0] === 0)) {
+	            return "0";
+	        }
+	        len -= 1;
+	        str = first.value[len].toString();
+	        while (--len >= 0) {
+	            var digit = first.value[len].toString();
+	            str += zeros.slice(digit.length) + digit;
+	        }
+	        var s = first.sign === sign.positive ? "" : "-";
+	        return s + str;
+	    };
+	    BigInteger.prototype.toJSNumber = function () {
+	        return this.valueOf();
+	    };
+	    BigInteger.prototype.valueOf = function () {
+	        if (this.value.length === 1) return this.sign ? -this.value[0] : this.value[0];
+	        return +this.toString();
+	    };
+
+	    var ZERO = new BigInteger([0], sign.positive);
+	    var ONE = new BigInteger([1], sign.positive);
+	    var MINUS_ONE = new BigInteger([1], sign.negative);
+
+
+	    function parseInput(text) {
+	        if (text instanceof BigInteger) return text;
+	        if (Math.abs(+text) < base && +text === (+text | 0)) {
+	            var value = +text;
+	            return new BigInteger([Math.abs(value)], (value < 0 || (1 / value) === -Infinity));
+	        }
+	        text += "";
+	        var s = sign.positive, value = [];
+	        if (text[0] === "-") {
+	            s = sign.negative;
+	            text = text.slice(1);
+	        }
+	        var text = text.split(/e/i);
+	        if (text.length > 2) throw new Error("Invalid integer: " + text.join("e"));
+	        if (text[1]) {
+	            var exp = text[1];
+	            if (exp[0] === "+") exp = exp.slice(1);
+	            exp = parseInput(exp);
+	            var decimalPlace = text[0].indexOf(".");
+	            if (decimalPlace >= 0) {
+	                exp = exp.minus(text[0].length - decimalPlace);
+	                text[0] = text[0].slice(0, decimalPlace) + text[0].slice(decimalPlace + 1);
+	            }
+	            if (exp.lesser(0)) throw new Error("Cannot include negative exponent part for integers");
+	            while (exp.notEquals(0)) {
+	                text[0] += "0";
+	                exp = exp.prev();
+	            }
+	        }
+	        text = text[0];
+	        if (text === "-0") text = "0";
+	        var isValid = /^([0-9][0-9]*)$/.test(text);
+	        if (!isValid) throw new Error("Invalid integer: " + text);
+	        while (text.length) {
+	            var divider = text.length > logBase ? text.length - logBase : 0;
+	            value.push(+text.slice(divider));
+	            text = text.slice(0, divider);
+	        }
+	        return new BigInteger(trim(value), s);
+	    }
+
+	    var parseBase = function (text, base) {
+	        base = parseInput(base);
+	        var val = ZERO;
+	        var digits = [];
+	        var i;
+	        var isNegative = false;
+	        function parseToken(text) {
+	            var c = text[i].toLowerCase();
+	            if (i === 0 && text[i] === "-") {
+	                isNegative = true;
+	                return;
+	            }
+	            if (/[0-9]/.test(c)) digits.push(parseInput(c));
+	            else if (/[a-z]/.test(c)) digits.push(parseInput(c.charCodeAt(0) - 87));
+	            else if (c === "<") {
+	                var start = i;
+	                do { i++; } while (text[i] !== ">");
+	                digits.push(parseInput(text.slice(start + 1, i)));
+	            }
+	            else throw new Error(c + " is not a valid character");
+	        }
+	        for (i = 0; i < text.length; i++) {
+	            parseToken(text);
+	        }
+	        digits.reverse();
+	        for (i = 0; i < digits.length; i++) {
+	            val = val.add(digits[i].times(base.pow(i)));
+	        }
+	        return isNegative ? val.negate() : val;
+	    };
+
+	    function stringify(digit) {
+	        var v = digit.value;
+	        if (v.length === 1 && v[0] <= 36) {
+	            return "0123456789abcdefghijklmnopqrstuvwxyz".charAt(v[0]);
+	        }
+	        return "<" + v + ">";
+	    }
+
+	    function toBase(n, base) {
+	        base = bigInt(base);
+	        if (base.equals(0)) {
+	            if (n.equals(0)) return "0";
+	            throw new Error("Cannot convert nonzero numbers to base 0.");
+	        }
+	        if (base.equals(-1)) {
+	            if (n.equals(0)) return "0";
+	            if (n.lesser(0)) return Array(1 - n).join("10");
+	            return "1" + Array(+n).join("01");
+	        }
+	        var minusSign = "";
+	        if (n.isNegative() && base.isPositive()) {
+	            minusSign = "-";
+	            n = n.abs();
+	        }
+	        if (base.equals(1)) {
+	            if (n.equals(0)) return "0";
+	            return minusSign + Array(+n + 1).join(1);
+	        }
+	        var out = [];
+	        var left = n, divmod;
+	        while (left.lesser(0) || left.compareAbs(base) >= 0) {
+	            divmod = left.divmod(base);
+	            left = divmod.quotient;
+	            var digit = divmod.remainder;
+	            if (digit.lesser(0)) {
+	                digit = base.minus(digit).abs();
+	                left = left.next();
+	            }
+	            out.push(stringify(digit));
+	        }
+	        out.push(stringify(left));
+	        return minusSign + out.reverse().join("");
+	    }
+
+	    var fnReturn = function (a, b) {
+	        if (typeof a === "undefined") return ZERO;
+	        if (typeof b !== "undefined") return parseBase(a, b);
+	        return parseInput(a);
+	    };
+	    fnReturn.zero = ZERO;
+	    fnReturn.one = ONE;
+	    fnReturn.minusOne = MINUS_ONE;
+	    fnReturn.randBetween = randBetween;
+	    fnReturn.isInstance = function (x) { return x instanceof BigInteger; };
+	    fnReturn.min = min;
+	    fnReturn.max = max;
+	    fnReturn.gcd = gcd;
+	    fnReturn.lcm = lcm;
+	    return fnReturn;
+	})();
+
+	if (true) {
+	    module.exports = bigInt;
+	}
+
+
+/***/ },
+/* 7 */
+/***/ function(module, exports, __webpack_require__) {
+
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(8), __webpack_require__(9), __webpack_require__(10), __webpack_require__(11), __webpack_require__(12), __webpack_require__(13), __webpack_require__(14), __webpack_require__(15), __webpack_require__(16), __webpack_require__(17), __webpack_require__(18), __webpack_require__(19), __webpack_require__(20), __webpack_require__(21), __webpack_require__(22), __webpack_require__(23), __webpack_require__(24), __webpack_require__(25), __webpack_require__(26), __webpack_require__(27), __webpack_require__(28), __webpack_require__(29), __webpack_require__(30), __webpack_require__(31), __webpack_require__(32), __webpack_require__(33), __webpack_require__(34), __webpack_require__(35), __webpack_require__(36), __webpack_require__(37), __webpack_require__(38), __webpack_require__(39));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(9), __webpack_require__(10), __webpack_require__(11), __webpack_require__(12), __webpack_require__(13), __webpack_require__(14), __webpack_require__(15), __webpack_require__(16), __webpack_require__(17), __webpack_require__(18), __webpack_require__(19), __webpack_require__(20), __webpack_require__(21), __webpack_require__(22), __webpack_require__(23), __webpack_require__(24), __webpack_require__(25), __webpack_require__(26), __webpack_require__(27), __webpack_require__(28), __webpack_require__(29), __webpack_require__(30), __webpack_require__(31), __webpack_require__(32), __webpack_require__(33), __webpack_require__(34), __webpack_require__(35), __webpack_require__(36), __webpack_require__(37), __webpack_require__(38), __webpack_require__(39), __webpack_require__(40));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -2680,15 +3386,7 @@
 	}));
 
 /***/ },
-/* 6 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	module.exports = __webpack_require__(41);
-
-
-/***/ },
-/* 7 */
+/* 8 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
@@ -3435,13 +4133,13 @@
 	}));
 
 /***/ },
-/* 8 */
+/* 9 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -3744,13 +4442,13 @@
 	}));
 
 /***/ },
-/* 9 */
+/* 10 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -3825,13 +4523,13 @@
 	}));
 
 /***/ },
-/* 10 */
+/* 11 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -3979,13 +4677,13 @@
 	}));
 
 /***/ },
-/* 11 */
+/* 12 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -4107,13 +4805,13 @@
 	}));
 
 /***/ },
-/* 12 */
+/* 13 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -4380,13 +5078,13 @@
 	}));
 
 /***/ },
-/* 13 */
+/* 14 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -4535,13 +5233,13 @@
 	}));
 
 /***/ },
-/* 14 */
+/* 15 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -4739,13 +5437,13 @@
 	}));
 
 /***/ },
-/* 15 */
+/* 16 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(14));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(15));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -4824,13 +5522,13 @@
 	}));
 
 /***/ },
-/* 16 */
+/* 17 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(8));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(9));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -5152,13 +5850,13 @@
 	}));
 
 /***/ },
-/* 17 */
+/* 18 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(8), __webpack_require__(16));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(9), __webpack_require__(17));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -5240,13 +5938,13 @@
 	}));
 
 /***/ },
-/* 18 */
+/* 19 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(8));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(9));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -5568,13 +6266,13 @@
 	}));
 
 /***/ },
-/* 19 */
+/* 20 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -5840,13 +6538,13 @@
 	}));
 
 /***/ },
-/* 20 */
+/* 21 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -5988,13 +6686,13 @@
 	}));
 
 /***/ },
-/* 21 */
+/* 22 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(13), __webpack_require__(20));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(14), __webpack_require__(21));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -6138,13 +6836,13 @@
 	}));
 
 /***/ },
-/* 22 */
+/* 23 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(13), __webpack_require__(20));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(14), __webpack_require__(21));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -6275,13 +6973,13 @@
 	}));
 
 /***/ },
-/* 23 */
+/* 24 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7));
+			module.exports = exports = factory(__webpack_require__(8));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7155,13 +7853,13 @@
 	}));
 
 /***/ },
-/* 24 */
+/* 25 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7238,13 +7936,13 @@
 	}));
 
 /***/ },
-/* 25 */
+/* 26 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7301,13 +7999,13 @@
 	}));
 
 /***/ },
-/* 26 */
+/* 27 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7422,13 +8120,13 @@
 	}));
 
 /***/ },
-/* 27 */
+/* 28 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7481,13 +8179,13 @@
 	}));
 
 /***/ },
-/* 28 */
+/* 29 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7526,13 +8224,13 @@
 	}));
 
 /***/ },
-/* 29 */
+/* 30 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7580,13 +8278,13 @@
 	}));
 
 /***/ },
-/* 30 */
+/* 31 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7629,13 +8327,13 @@
 	}));
 
 /***/ },
-/* 31 */
+/* 32 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7674,13 +8372,13 @@
 	}));
 
 /***/ },
-/* 32 */
+/* 33 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7724,13 +8422,13 @@
 	}));
 
 /***/ },
-/* 33 */
+/* 34 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7759,13 +8457,13 @@
 	}));
 
 /***/ },
-/* 34 */
+/* 35 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -7830,13 +8528,13 @@
 	}));
 
 /***/ },
-/* 35 */
+/* 36 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(11), __webpack_require__(12), __webpack_require__(22), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(12), __webpack_require__(13), __webpack_require__(23), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -8062,13 +8760,13 @@
 	}));
 
 /***/ },
-/* 36 */
+/* 37 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(11), __webpack_require__(12), __webpack_require__(22), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(12), __webpack_require__(13), __webpack_require__(23), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -8837,13 +9535,13 @@
 	}));
 
 /***/ },
-/* 37 */
+/* 38 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(11), __webpack_require__(12), __webpack_require__(22), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(12), __webpack_require__(13), __webpack_require__(23), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -8981,13 +9679,13 @@
 	}));
 
 /***/ },
-/* 38 */
+/* 39 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(11), __webpack_require__(12), __webpack_require__(22), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(12), __webpack_require__(13), __webpack_require__(23), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -9178,13 +9876,13 @@
 	}));
 
 /***/ },
-/* 39 */
+/* 40 */
 /***/ function(module, exports, __webpack_require__) {
 
 	;(function (root, factory, undef) {
 		if (true) {
 			// CommonJS
-			module.exports = exports = factory(__webpack_require__(7), __webpack_require__(11), __webpack_require__(12), __webpack_require__(22), __webpack_require__(23));
+			module.exports = exports = factory(__webpack_require__(8), __webpack_require__(12), __webpack_require__(13), __webpack_require__(23), __webpack_require__(24));
 		}
 		else if (typeof define === "function" && define.amd) {
 			// AMD
@@ -9373,704 +10071,6 @@
 	}));
 
 /***/ },
-/* 40 */
-/***/ function(module, exports, __webpack_require__) {
-
-	"use strict";
-	var bigInt = (function () {
-	    var base = 10000000, logBase = 7, zeros = "0000000";
-	    var sign = {
-	        positive: false,
-	        negative: true
-	    };
-
-	    function BigInteger(value, sign) {
-	        this.value = value;
-	        this.sign = sign;
-	    }
-
-	    function trim(value) {
-	        while (value[value.length - 1] === 0 && value.length > 1) value.pop();
-	        return value;
-	    }
-
-	    function fastAdd(a, b) {
-	        var sign = b < 0;
-	        if (a.sign !== sign) {
-	            if(sign) return fastSubtract(a.abs(), -b);
-	            return fastSubtract(a.abs(), b).negate();
-	        }
-	        if (sign) b = -b;
-	        var value = a.value,
-	            result = [],
-	            carry = 0;
-	        for (var i = 0; i < value.length || carry > 0; i++) {
-	            var sum = (value[i] || 0) + (i > 0 ? 0 : b) + carry;
-	            carry = sum >= base ? 1 : 0;
-	            result.push(sum % base);
-	        }
-	        return new BigInteger(trim(result), a.sign);
-	    }
-
-	    function fastSubtract(a, b) {
-	        var value = a.value;
-	        if (value.length === 1) {
-	            value = value[0];
-	            if (a.sign) value = -value;
-	            return new BigInteger([Math.abs(value - b)], (value - b) < 0);
-	        }
-	        if (a.sign !== (b < 0)) return fastAdd(a, -b);
-	        var sign = false;
-	        if (a.sign) sign = true;
-	        if (value.length === 1 && value[0] < b) return new BigInteger([b - value[0]], !sign);
-	        if (sign) b = -b;
-	        var result = [],
-	            borrow = 0;
-	        for (var i = 0; i < value.length; i++) {
-	            var tmp = value[i] - borrow - (i > 0 ? 0 : b);
-	            borrow = tmp < 0 ? 1 : 0;
-	            result.push((borrow * base) + tmp);
-	        }
-
-	        return new BigInteger(trim(result), sign);
-	    }
-
-	    function fastMultiplyInternal(value, lambda) {
-	        var result = [];
-	        var carry = 0;
-	        for (var i = 0; i < value.length; i++) {
-	            carry += lambda * value[i];
-	            var q = Math.floor(carry / base);
-	            result[i] = (carry - q * base) | 0;
-	            carry = q;
-	        }
-	        result[value.length] = carry | 0;
-	        return result;
-	    }
-
-	    function fastMultiply(a, b) {
-	        var result = fastMultiplyInternal(a.value, b < 0 ? -b : b);
-	        return new BigInteger(trim(result), b < 0 ? !a.sign : a.sign);
-	    }
-
-	    function fastDivModInternal(value, lambda) {
-	        var quotient = [];
-	        for (var i = 0; i < value.length; i++) {
-	            quotient[i] = 0;
-	        }
-	        var remainder = 0;
-	        for (var i = value.length - 1; i >= 0; i--) {
-	            var divisor = remainder * base + value[i];
-	            var q = Math.floor(divisor / lambda);
-	            remainder = divisor - q * lambda;
-	            quotient[i] = q | 0;
-	        }
-	        return {
-	          quotient: quotient,
-	          remainder: remainder | 0
-	        };
-	    }
-
-	    function fastDivMod(a, b) {
-	        if (b === 0) throw new Error("Cannot divide by zero.");
-	        var result = fastDivModInternal(a.value, b < 0 ? -b : b);
-	        return {
-	            quotient: new BigInteger(trim(result.quotient), b < 0 ? !a.sign : a.sign),
-	            remainder: new BigInteger([result.remainder], a.sign)
-	        };
-	    }
-
-	    function isSmall(n) {
-	        return ((typeof n === "number" || typeof n === "string") && +Math.abs(n) <= base) ||
-	            (n instanceof BigInteger && n.value.length <= 1);
-	    }
-
-	    BigInteger.prototype.negate = function () {
-	        return new BigInteger(this.value, !this.sign);
-	    };
-	    BigInteger.prototype.abs = function () {
-	        return new BigInteger(this.value, sign.positive);
-	    };
-	    BigInteger.prototype.add = function (n) {
-	        if(isSmall(n)) return fastAdd(this, +n);
-	        n = parseInput(n);
-	        if (this.sign !== n.sign) {
-	            if (this.sign === sign.positive) return this.abs().subtract(n.abs());
-	            return n.abs().subtract(this.abs());
-	        }
-	        var a = this.value, b = n.value;
-	        var result = [],
-	            carry = 0,
-	            length = Math.max(a.length, b.length);
-	        for (var i = 0; i < length || carry > 0; i++) {
-	            var sum = (a[i] || 0) + (b[i] || 0) + carry;
-	            carry = sum >= base ? 1 : 0;
-	            result.push(sum % base);
-	        }
-	        return new BigInteger(trim(result), this.sign);
-	    };
-	    BigInteger.prototype.plus = BigInteger.prototype.add;
-
-	    BigInteger.prototype.subtract = function (n) {
-	        if (isSmall(n)) return fastSubtract(this, +n);
-	        n = parseInput(n);
-	        if (this.sign !== n.sign) return this.add(n.negate());
-	        if (this.sign === sign.negative) return n.negate().subtract(this.negate());
-	        if (this.compare(n) < 0) return n.subtract(this).negate();
-	        var a = this.value, b = n.value;
-	        var result = [],
-	            borrow = 0,
-	            length = Math.max(a.length, b.length);
-	        for (var i = 0; i < length; i++) {
-	            var ai = a[i] || 0, bi = b[i] || 0;
-	            var tmp = ai - borrow;
-	            borrow = tmp < bi ? 1 : 0;
-	            result.push((borrow * base) + tmp - bi);
-	        }
-	        return new BigInteger(trim(result), sign.positive);
-	    };
-	    BigInteger.prototype.minus = BigInteger.prototype.subtract;
-
-	    BigInteger.prototype.multiply = function (n) {
-	        if (isSmall(n)) return fastMultiply(this, +n);
-	        n = parseInput(n);
-	        var sign = this.sign !== n.sign;
-
-	        var a = this.value, b = n.value;
-	        var result = [];
-	        for (var i = a.length + b.length; i > 0; i--) {
-	            result.push(0);
-	        }
-	        for (var i = 0; i < a.length; i++) {
-	            var x = a[i];
-	            for (var j = 0; j < b.length; j++) {
-	                var y = b[j];
-	                var product = x * y + result[i+j];
-	                var q = Math.floor(product / base);
-	                result[i+j] = product - q * base;
-	                result[i+j+1] += q;
-	            }
-	        }
-	        return new BigInteger(trim(result), sign);
-	    };
-	    BigInteger.prototype.times = BigInteger.prototype.multiply;
-
-	    BigInteger.prototype.divmod = function (n) {
-	        if (isSmall(n)) return fastDivMod(this, +n);
-	        n = parseInput(n);
-	        var quotientSign = this.sign !== n.sign;
-	        if (n.equals(ZERO)) throw new Error("Cannot divide by zero");
-	        if (this.equals(ZERO)) return {
-	            quotient: new BigInteger([0], sign.positive),
-	            remainder: new BigInteger([0], sign.positive)
-	        };
-	        var a = this.value, b = n.value;
-	        var result = [0];
-	        for (var i = 0; i < b.length; i++) {
-	            result[i] = 0;
-	        }
-	        var divisorMostSignificantDigit = b[b.length - 1];
-	        // normalization
-	        var lambda = Math.ceil(base / 2 / divisorMostSignificantDigit);
-	        var remainder = fastMultiplyInternal(a, lambda);
-	        var divisor = fastMultiplyInternal(b, lambda);
-	        divisorMostSignificantDigit = divisor[b.length - 1];
-	        for (var shift = a.length - b.length; shift >= 0; shift--) {
-	            var quotientDigit = base - 1;
-	            if (remainder[shift + b.length] !== divisorMostSignificantDigit) {
-	                quotientDigit = Math.floor((remainder[shift + b.length] * base + remainder[shift + b.length - 1]) / divisorMostSignificantDigit);
-	            }
-	            // remainder -= quotientDigit * divisor
-	            var carry = 0;
-	            var borrow = 0;
-	            for (var i = 0; i < divisor.length; i++) {
-	                carry += quotientDigit * divisor[i];
-	                var q = Math.floor(carry / base);
-	                borrow += remainder[shift + i] - (carry - q * base);
-	                carry = q;
-	                if (borrow < 0) {
-	                    remainder[shift + i] = (borrow + base) | 0;
-	                    borrow = -1;
-	                } else {
-	                    remainder[shift + i] = borrow | 0;
-	                    borrow = 0;
-	                }
-	            }
-	            while (borrow !== 0) {
-	                quotientDigit -= 1;
-	                var carry = 0;
-	                for (var i = 0; i < divisor.length; i++) {
-	                    carry += remainder[shift + i] - base + divisor[i];
-	                    if (carry < 0) {
-	                        remainder[shift + i] = (carry + base) | 0;
-	                        carry = 0;
-	                    } else {
-	                        remainder[shift + i] = carry | 0;
-	                        carry = +1;
-	                    }
-	                }
-	                borrow += carry;
-	            }
-	            result[shift] = quotientDigit | 0;
-	        }
-	        // denormalization
-	        remainder = fastDivModInternal(remainder, lambda).quotient;
-	        return {
-	            quotient: new BigInteger(trim(result), quotientSign),
-	            remainder: new BigInteger(trim(remainder), this.sign)
-	        };
-	    };
-	    BigInteger.prototype.divide = function (n) {
-	        return this.divmod(n).quotient;
-	    };
-	    BigInteger.prototype.over = BigInteger.prototype.divide;
-
-	    BigInteger.prototype.mod = function (n) {
-	        return this.divmod(n).remainder;
-	    };
-	    BigInteger.prototype.remainder = BigInteger.prototype.mod;
-
-	    BigInteger.prototype.pow = function (n) {
-	        n = parseInput(n);
-	        var a = this, b = n, r = ONE;
-	        if (b.equals(ZERO)) return r;
-	        if (a.equals(ZERO) || b.lesser(ZERO)) return ZERO;
-	        while (true) {
-	            if (b.isOdd()) {
-	                r = r.times(a);
-	            }
-	            b = b.divide(2);
-	            if (b.equals(ZERO)) break;
-	            a = a.times(a);
-	        }
-	        return r;
-	    };
-	    BigInteger.prototype.modPow = function (exp, mod) {
-	        exp = parseInput(exp);
-	        mod = parseInput(mod);
-	        if (mod.equals(ZERO)) throw new Error("Cannot take modPow with modulus 0");
-	        var r = ONE,
-	            base = this.mod(mod);
-	        if (base.equals(ZERO)) return ZERO;
-	        while (exp.greater(0)) {
-	            if (exp.isOdd()) r = r.multiply(base).mod(mod);
-	            exp = exp.divide(2);
-	            base = base.square().mod(mod);
-	        }
-	        return r;
-	    };
-	    BigInteger.prototype.square = function () {
-	        return this.multiply(this);
-	    };
-	    function gcd(a, b) {
-	        a = parseInput(a).abs();
-	        b = parseInput(b).abs();
-	        if (a.equals(b)) return a;
-	        if (a.equals(ZERO)) return b;
-	        if (b.equals(ZERO)) return a;
-	        if (a.isEven()) {
-	            if (b.isOdd()) {
-	                return gcd(a.divide(2), b);
-	            }
-	            return gcd(a.divide(2), b.divide(2)).multiply(2);
-	        }
-	        if (b.isEven()) {
-	            return gcd(a, b.divide(2));
-	        }
-	        if (a.greater(b)) {
-	            return gcd(a.subtract(b).divide(2), b);
-	        }
-	        return gcd(b.subtract(a).divide(2), a);
-	    }
-	    function lcm(a, b) {
-	        a = parseInput(a).abs();
-	        b = parseInput(b).abs();
-	        return a.multiply(b).divide(gcd(a, b));
-	    }
-	    BigInteger.prototype.next = function () {
-	        return fastAdd(this, 1);
-	    };
-	    BigInteger.prototype.prev = function () {
-	        return fastSubtract(this, 1);
-	    };
-	    BigInteger.prototype.compare = function (n) {
-	        var first = this, second = parseInput(n);
-	        if (first.value.length === 1 && second.value.length === 1 && first.value[0] === 0 && second.value[0] === 0) return 0;
-	        if (second.sign !== first.sign) return first.sign === sign.positive ? 1 : -1;
-	        var multiplier = first.sign === sign.positive ? 1 : -1;
-	        var a = first.value, b = second.value,
-	            length = Math.max(a.length, b.length) - 1;
-	        for (var i = length; i >= 0; i--) {
-	            var ai = (a[i] || 0), bi = (b[i] || 0);
-	            if (ai > bi) return 1 * multiplier;
-	            if (bi > ai) return -1 * multiplier;
-	        }
-	        return 0;
-	    };
-
-	    BigInteger.prototype.compareAbs = function (n) {
-	        return this.abs().compare(n.abs());
-	    };
-	    BigInteger.prototype.equals = function (n) {
-	        return this.compare(n) === 0;
-	    };
-	    BigInteger.prototype.notEquals = function (n) {
-	        return !this.equals(n);
-	    };
-	    BigInteger.prototype.lesser = function (n) {
-	        return this.compare(n) < 0;
-	    };
-	    BigInteger.prototype.greater = function (n) {
-	        return this.compare(n) > 0;
-	    };
-	    BigInteger.prototype.greaterOrEquals = function (n) {
-	        return this.compare(n) >= 0;
-	    };
-	    BigInteger.prototype.lesserOrEquals = function (n) {
-	        return this.compare(n) <= 0;
-	    };
-
-	    BigInteger.prototype.compareTo = BigInteger.prototype.compare;
-	    BigInteger.prototype.lt = BigInteger.prototype.lesser;
-	    BigInteger.prototype.leq = BigInteger.prototype.lesserOrEquals;
-	    BigInteger.prototype.gt = BigInteger.prototype.greater;
-	    BigInteger.prototype.geq = BigInteger.prototype.greaterOrEquals;
-	    BigInteger.prototype.eq = BigInteger.prototype.equals;
-	    BigInteger.prototype.neq = BigInteger.prototype.notEquals;
-
-	    function max (a, b) {
-	        a = parseInput(a);
-	        b = parseInput(b);
-	        return a.greater(b) ? a : b;
-	    }
-	    function min (a, b) {
-	        a = parseInput(a);
-	        b = parseInput(b);
-	        return a.lesser(b) ? a : b;
-	    }
-	    BigInteger.prototype.isPositive = function () {
-	        if (this.value.length === 1 && this.value[0] === 0) return false;
-	        return this.sign === sign.positive;
-	    };
-	    BigInteger.prototype.isNegative = function () {
-	        if (this.value.length === 1 && this.value[0] === 0) return false;
-	        return this.sign === sign.negative;
-	    };
-	    BigInteger.prototype.isEven = function () {
-	        return this.value[0] % 2 === 0;
-	    };
-	    BigInteger.prototype.isOdd = function () {
-	        return this.value[0] % 2 === 1;
-	    };
-	    BigInteger.prototype.isUnit = function () {
-	        return this.value.length === 1 && this.value[0] === 1;
-	    };
-	    BigInteger.prototype.isZero = function () {
-	        return this.value.length === 1 && this.value[0] === 0;
-	    };
-	    BigInteger.prototype.isDivisibleBy = function (n) {
-	        n = parseInput(n);
-	        if (n.isZero()) return false;
-	        return this.mod(n).equals(ZERO);
-	    };
-	    BigInteger.prototype.isPrime = function () {
-	        var n = this.abs(),
-	            nPrev = n.prev();
-	        if (n.isUnit()) return false;
-	        if (n.equals(2) || n.equals(3) || n.equals(5)) return true;
-	        if (n.isEven() || n.isDivisibleBy(3) || n.isDivisibleBy(5)) return false;
-	        if (n.lesser(25)) return true;
-	        var a = [2, 3, 5, 7, 11, 13, 17, 19],
-	            b = nPrev,
-	            d, t, i, x;
-	        while (b.isEven()) b = b.divide(2);
-	        for (i = 0; i < a.length; i++) {
-	            x = bigInt(a[i]).modPow(b, n);
-	            if (x.equals(ONE) || x.equals(nPrev)) continue;
-	            for (t = true, d = b; t && d.lesser(nPrev); d = d.multiply(2)) {
-	                x = x.square().mod(n);
-	                if (x.equals(nPrev)) t = false;
-	            }
-	            if (t) return false;
-	        }
-	        return true;
-	    };
-	    function randBetween (a, b) {
-	        a = parseInput(a);
-	        b = parseInput(b);
-	        var low = min(a, b), high = max(a, b);
-	        var range = high.subtract(low);
-	        var length = range.value.length - 1;
-	        var result = [], restricted = true;
-	        for (var i = length; i >= 0; i--) {
-	            var top = restricted ? range.value[i] : base;
-	            var digit = Math.floor(Math.random() * top);
-	            result.unshift(digit);
-	            if (digit < top) restricted = false;
-	        }
-	        return low.add(new BigInteger(result, false));
-	    }
-
-	    var powersOfTwo = [1];
-	    while (powersOfTwo[powersOfTwo.length - 1] <= base) powersOfTwo.push(2 * powersOfTwo[powersOfTwo.length - 1]);
-	    var powers2Length = powersOfTwo.length, highestPower2 = powersOfTwo[powers2Length - 1];
-
-	    BigInteger.prototype.shiftLeft = function (n) {
-	        if (!isSmall(n)) {
-	            if (n.isNegative()) return this.shiftRight(n.abs());
-	            return this.times(bigInt(2).pow(n));
-	        }
-	        n = +n;
-	        if (n < 0) return this.shiftRight(-n);
-	        var result = this;
-	        while (n >= powers2Length) {
-	            result = fastMultiply(result, highestPower2);
-	            n -= powers2Length - 1;
-	        }
-	        return fastMultiply(result, powersOfTwo[n]);
-	    };
-
-	    BigInteger.prototype.shiftRight = function (n) {
-	        var remQuo = undefined;
-	        if (!isSmall(n)) {
-	            if (n.isNegative()) return this.shiftLeft(n.abs());
-	            remQuo = this.divmod(bigInt(2).pow(n));
-	            return remQuo.remainder.compareTo(ZERO) < 0 ? remQuo.quotient.subtract(ONE) : remQuo.quotient;
-	        }
-	        n = +n;
-	        if (n < 0) return this.shiftLeft(-n);
-	        var result = this;
-	        while (n >= powers2Length) {
-	            if (result.equals(ZERO)) return result;
-	            remQuo = fastDivMod(result, highestPower2);
-	            result = remQuo.remainder.compareTo(ZERO) < 0 ? remQuo.quotient.subtract(ONE) : remQuo.quotient;
-	            n -= powers2Length - 1;
-	        }
-	        remQuo = fastDivMod(result, powersOfTwo[n]);
-	        return remQuo.remainder.compareTo(ZERO) < 0 ? remQuo.quotient.subtract(ONE) : remQuo.quotient;
-	    };
-
-	    function bitwise(x, y, fn) {
-	        y = parseInput(y);
-	        var xSign = x.isNegative(), ySign = y.isNegative();
-	        var xRem = xSign ? x.not() : x,
-	            yRem = ySign ? y.not() : y;
-	        var xBits = [], yBits = [];
-	        var xStop = false, yStop = false;
-	        while (!xStop || !yStop) {
-	            if (xRem.isZero()) { // virtual sign extension for simulating two's complement
-	                xStop = true;
-	                xBits.push(xSign ? 1 : 0);
-	            }
-	            else if (xSign) xBits.push(xRem.isEven() ? 1 : 0); // two's complement for negative numbers
-	            else xBits.push(xRem.isEven() ? 0 : 1);
-
-	            if (yRem.isZero()) {
-	                yStop = true;
-	                yBits.push(ySign ? 1 : 0);
-	            }
-	            else if (ySign) yBits.push(yRem.isEven() ? 1 : 0);
-	            else yBits.push(yRem.isEven() ? 0 : 1);
-
-	            xRem = xRem.over(2);
-	            yRem = yRem.over(2);
-	        }
-	        var result = [];
-	        for (var i = 0; i < xBits.length; i++) result.push(fn(xBits[i], yBits[i]));
-	        var sum = bigInt(result.pop()).negate().times(bigInt(2).pow(result.length));
-	        while (result.length) {
-	            sum = sum.add(bigInt(result.pop()).times(bigInt(2).pow(result.length)));
-	        }
-	        return sum;
-	    }
-
-	    BigInteger.prototype.not = function () {
-	        return this.negate().minus(1);
-	    };
-
-	    BigInteger.prototype.and = function (n) {
-	        return bitwise(this, n, function (a, b) { return a & b });
-	    };
-
-	    BigInteger.prototype.or = function (n) {
-	        return bitwise(this, n, function (a, b) { return a | b; });
-	    };
-
-	    BigInteger.prototype.xor = function (n) {
-	        return bitwise(this, n, function (a, b) { return a ^ b });
-	    };
-
-	    BigInteger.prototype.toString = function (radix) {
-	        if (radix === undefined) {
-	            radix = 10;
-	        }
-	        if (radix !== 10) return toBase(this, radix);
-	        var first = this;
-	        var str = "", len = first.value.length;
-	        if (len === 0 || (len === 1 && first.value[0] === 0)) {
-	            return "0";
-	        }
-	        len -= 1;
-	        str = first.value[len].toString();
-	        while (--len >= 0) {
-	            var digit = first.value[len].toString();
-	            str += zeros.slice(digit.length) + digit;
-	        }
-	        var s = first.sign === sign.positive ? "" : "-";
-	        return s + str;
-	    };
-	    BigInteger.prototype.toJSNumber = function () {
-	        return this.valueOf();
-	    };
-	    BigInteger.prototype.valueOf = function () {
-	        if (this.value.length === 1) return this.sign ? -this.value[0] : this.value[0];
-	        return +this.toString();
-	    };
-
-	    var ZERO = new BigInteger([0], sign.positive);
-	    var ONE = new BigInteger([1], sign.positive);
-	    var MINUS_ONE = new BigInteger([1], sign.negative);
-
-
-	    function parseInput(text) {
-	        if (text instanceof BigInteger) return text;
-	        if (Math.abs(+text) < base && +text === (+text | 0)) {
-	            var value = +text;
-	            return new BigInteger([Math.abs(value)], (value < 0 || (1 / value) === -Infinity));
-	        }
-	        text += "";
-	        var s = sign.positive, value = [];
-	        if (text[0] === "-") {
-	            s = sign.negative;
-	            text = text.slice(1);
-	        }
-	        var text = text.split(/e/i);
-	        if (text.length > 2) throw new Error("Invalid integer: " + text.join("e"));
-	        if (text[1]) {
-	            var exp = text[1];
-	            if (exp[0] === "+") exp = exp.slice(1);
-	            exp = parseInput(exp);
-	            var decimalPlace = text[0].indexOf(".");
-	            if (decimalPlace >= 0) {
-	                exp = exp.minus(text[0].length - decimalPlace);
-	                text[0] = text[0].slice(0, decimalPlace) + text[0].slice(decimalPlace + 1);
-	            }
-	            if (exp.lesser(0)) throw new Error("Cannot include negative exponent part for integers");
-	            while (exp.notEquals(0)) {
-	                text[0] += "0";
-	                exp = exp.prev();
-	            }
-	        }
-	        text = text[0];
-	        if (text === "-0") text = "0";
-	        var isValid = /^([0-9][0-9]*)$/.test(text);
-	        if (!isValid) throw new Error("Invalid integer: " + text);
-	        while (text.length) {
-	            var divider = text.length > logBase ? text.length - logBase : 0;
-	            value.push(+text.slice(divider));
-	            text = text.slice(0, divider);
-	        }
-	        return new BigInteger(trim(value), s);
-	    }
-
-	    var parseBase = function (text, base) {
-	        base = parseInput(base);
-	        var val = ZERO;
-	        var digits = [];
-	        var i;
-	        var isNegative = false;
-	        function parseToken(text) {
-	            var c = text[i].toLowerCase();
-	            if (i === 0 && text[i] === "-") {
-	                isNegative = true;
-	                return;
-	            }
-	            if (/[0-9]/.test(c)) digits.push(parseInput(c));
-	            else if (/[a-z]/.test(c)) digits.push(parseInput(c.charCodeAt(0) - 87));
-	            else if (c === "<") {
-	                var start = i;
-	                do { i++; } while (text[i] !== ">");
-	                digits.push(parseInput(text.slice(start + 1, i)));
-	            }
-	            else throw new Error(c + " is not a valid character");
-	        }
-	        for (i = 0; i < text.length; i++) {
-	            parseToken(text);
-	        }
-	        digits.reverse();
-	        for (i = 0; i < digits.length; i++) {
-	            val = val.add(digits[i].times(base.pow(i)));
-	        }
-	        return isNegative ? val.negate() : val;
-	    };
-
-	    function stringify(digit) {
-	        var v = digit.value;
-	        if (v.length === 1 && v[0] <= 36) {
-	            return "0123456789abcdefghijklmnopqrstuvwxyz".charAt(v[0]);
-	        }
-	        return "<" + v + ">";
-	    }
-
-	    function toBase(n, base) {
-	        base = bigInt(base);
-	        if (base.equals(0)) {
-	            if (n.equals(0)) return "0";
-	            throw new Error("Cannot convert nonzero numbers to base 0.");
-	        }
-	        if (base.equals(-1)) {
-	            if (n.equals(0)) return "0";
-	            if (n.lesser(0)) return Array(1 - n).join("10");
-	            return "1" + Array(+n).join("01");
-	        }
-	        var minusSign = "";
-	        if (n.isNegative() && base.isPositive()) {
-	            minusSign = "-";
-	            n = n.abs();
-	        }
-	        if (base.equals(1)) {
-	            if (n.equals(0)) return "0";
-	            return minusSign + Array(+n + 1).join(1);
-	        }
-	        var out = [];
-	        var left = n, divmod;
-	        while (left.lesser(0) || left.compareAbs(base) >= 0) {
-	            divmod = left.divmod(base);
-	            left = divmod.quotient;
-	            var digit = divmod.remainder;
-	            if (digit.lesser(0)) {
-	                digit = base.minus(digit).abs();
-	                left = left.next();
-	            }
-	            out.push(stringify(digit));
-	        }
-	        out.push(stringify(left));
-	        return minusSign + out.reverse().join("");
-	    }
-
-	    var fnReturn = function (a, b) {
-	        if (typeof a === "undefined") return ZERO;
-	        if (typeof b !== "undefined") return parseBase(a, b);
-	        return parseInput(a);
-	    };
-	    fnReturn.zero = ZERO;
-	    fnReturn.one = ONE;
-	    fnReturn.minusOne = MINUS_ONE;
-	    fnReturn.randBetween = randBetween;
-	    fnReturn.isInstance = function (x) { return x instanceof BigInteger; };
-	    fnReturn.min = min;
-	    fnReturn.max = max;
-	    fnReturn.gcd = gcd;
-	    fnReturn.lcm = lcm;
-	    return fnReturn;
-	})();
-
-	if (true) {
-	    module.exports = bigInt;
-	}
-
-
-/***/ },
 /* 41 */
 /***/ function(module, exports, __webpack_require__) {
 
@@ -10082,7 +10082,7 @@
 	var url = __webpack_require__(42);
 	var parser = __webpack_require__(45);
 	var Manager = __webpack_require__(43);
-	var debug = __webpack_require__(46)('socket.io-client');
+	var debug = __webpack_require__(58)('socket.io-client');
 
 	/**
 	 * Module exports.
@@ -10172,8 +10172,8 @@
 	 * Module dependencies.
 	 */
 
-	var parseuri = __webpack_require__(48);
-	var debug = __webpack_require__(46)('socket.io-client:url');
+	var parseuri = __webpack_require__(55);
+	var debug = __webpack_require__(58)('socket.io-client:url');
 
 	/**
 	 * Module exports.
@@ -10253,16 +10253,16 @@
 	 */
 
 	var url = __webpack_require__(42);
-	var eio = __webpack_require__(49);
+	var eio = __webpack_require__(47);
 	var Socket = __webpack_require__(44);
-	var Emitter = __webpack_require__(52);
+	var Emitter = __webpack_require__(50);
 	var parser = __webpack_require__(45);
-	var on = __webpack_require__(47);
-	var bind = __webpack_require__(53);
-	var object = __webpack_require__(54);
-	var debug = __webpack_require__(46)('socket.io-client:manager');
-	var indexOf = __webpack_require__(56);
-	var Backoff = __webpack_require__(55);
+	var on = __webpack_require__(46);
+	var bind = __webpack_require__(48);
+	var object = __webpack_require__(49);
+	var debug = __webpack_require__(58)('socket.io-client:manager');
+	var indexOf = __webpack_require__(51);
+	var Backoff = __webpack_require__(54);
 
 	/**
 	 * Module exports
@@ -10762,12 +10762,12 @@
 	 */
 
 	var parser = __webpack_require__(45);
-	var Emitter = __webpack_require__(52);
-	var toArray = __webpack_require__(57);
-	var on = __webpack_require__(47);
-	var bind = __webpack_require__(53);
-	var debug = __webpack_require__(46)('socket.io-client:socket');
-	var hasBin = __webpack_require__(58);
+	var Emitter = __webpack_require__(50);
+	var toArray = __webpack_require__(52);
+	var on = __webpack_require__(46);
+	var bind = __webpack_require__(48);
+	var debug = __webpack_require__(58)('socket.io-client:socket');
+	var hasBin = __webpack_require__(53);
 
 	/**
 	 * Module exports.
@@ -11152,12 +11152,12 @@
 	 * Module dependencies.
 	 */
 
-	var debug = __webpack_require__(61)('socket.io-parser');
-	var json = __webpack_require__(60);
-	var isArray = __webpack_require__(59);
-	var Emitter = __webpack_require__(52);
-	var binary = __webpack_require__(50);
-	var isBuf = __webpack_require__(51);
+	var debug = __webpack_require__(62)('socket.io-parser');
+	var json = __webpack_require__(61);
+	var isArray = __webpack_require__(60);
+	var Emitter = __webpack_require__(50);
+	var binary = __webpack_require__(56);
+	var isBuf = __webpack_require__(57);
 
 	/**
 	 * Protocol version.
@@ -11555,149 +11555,6 @@
 
 	
 	/**
-	 * Expose `debug()` as the module.
-	 */
-
-	module.exports = debug;
-
-	/**
-	 * Create a debugger with the given `name`.
-	 *
-	 * @param {String} name
-	 * @return {Type}
-	 * @api public
-	 */
-
-	function debug(name) {
-	  if (!debug.enabled(name)) return function(){};
-
-	  return function(fmt){
-	    fmt = coerce(fmt);
-
-	    var curr = new Date;
-	    var ms = curr - (debug[name] || curr);
-	    debug[name] = curr;
-
-	    fmt = name
-	      + ' '
-	      + fmt
-	      + ' +' + debug.humanize(ms);
-
-	    // This hackery is required for IE8
-	    // where `console.log` doesn't have 'apply'
-	    window.console
-	      && console.log
-	      && Function.prototype.apply.call(console.log, console, arguments);
-	  }
-	}
-
-	/**
-	 * The currently active debug mode names.
-	 */
-
-	debug.names = [];
-	debug.skips = [];
-
-	/**
-	 * Enables a debug mode by name. This can include modes
-	 * separated by a colon and wildcards.
-	 *
-	 * @param {String} name
-	 * @api public
-	 */
-
-	debug.enable = function(name) {
-	  try {
-	    localStorage.debug = name;
-	  } catch(e){}
-
-	  var split = (name || '').split(/[\s,]+/)
-	    , len = split.length;
-
-	  for (var i = 0; i < len; i++) {
-	    name = split[i].replace('*', '.*?');
-	    if (name[0] === '-') {
-	      debug.skips.push(new RegExp('^' + name.substr(1) + '$'));
-	    }
-	    else {
-	      debug.names.push(new RegExp('^' + name + '$'));
-	    }
-	  }
-	};
-
-	/**
-	 * Disable debug output.
-	 *
-	 * @api public
-	 */
-
-	debug.disable = function(){
-	  debug.enable('');
-	};
-
-	/**
-	 * Humanize the given `ms`.
-	 *
-	 * @param {Number} m
-	 * @return {String}
-	 * @api private
-	 */
-
-	debug.humanize = function(ms) {
-	  var sec = 1000
-	    , min = 60 * 1000
-	    , hour = 60 * min;
-
-	  if (ms >= hour) return (ms / hour).toFixed(1) + 'h';
-	  if (ms >= min) return (ms / min).toFixed(1) + 'm';
-	  if (ms >= sec) return (ms / sec | 0) + 's';
-	  return ms + 'ms';
-	};
-
-	/**
-	 * Returns true if the given mode name is enabled, false otherwise.
-	 *
-	 * @param {String} name
-	 * @return {Boolean}
-	 * @api public
-	 */
-
-	debug.enabled = function(name) {
-	  for (var i = 0, len = debug.skips.length; i < len; i++) {
-	    if (debug.skips[i].test(name)) {
-	      return false;
-	    }
-	  }
-	  for (var i = 0, len = debug.names.length; i < len; i++) {
-	    if (debug.names[i].test(name)) {
-	      return true;
-	    }
-	  }
-	  return false;
-	};
-
-	/**
-	 * Coerce `val`.
-	 */
-
-	function coerce(val) {
-	  if (val instanceof Error) return val.stack || val.message;
-	  return val;
-	}
-
-	// persist
-
-	try {
-	  if (window.localStorage) debug.enable(localStorage.debug);
-	} catch(e){}
-
-
-/***/ },
-/* 47 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	/**
 	 * Module exports.
 	 */
 
@@ -11723,33 +11580,39 @@
 
 
 /***/ },
+/* 47 */
+/***/ function(module, exports, __webpack_require__) {
+
+	
+	module.exports =  __webpack_require__(59);
+
+
+/***/ },
 /* 48 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
-	 * Parses an URI
-	 *
-	 * @author Steven Levithan <stevenlevithan.com> (MIT license)
-	 * @api private
+	 * Slice reference.
 	 */
 
-	var re = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+	var slice = [].slice;
 
-	var parts = [
-	    'source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host'
-	  , 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'
-	];
+	/**
+	 * Bind `obj` to `fn`.
+	 *
+	 * @param {Object} obj
+	 * @param {Function|String} fn or string
+	 * @return {Function}
+	 * @api public
+	 */
 
-	module.exports = function parseuri(str) {
-	  var m = re.exec(str || '')
-	    , uri = {}
-	    , i = 14;
-
-	  while (i--) {
-	    uri[parts[i]] = m[i] || '';
+	module.exports = function(obj, fn){
+	  if ('string' == typeof fn) fn = obj[fn];
+	  if ('function' != typeof fn) throw new Error('bind() requires a function');
+	  var args = slice.call(arguments, 2);
+	  return function(){
+	    return fn.apply(obj, args.concat(slice.call(arguments)));
 	  }
-
-	  return uri;
 	};
 
 
@@ -11758,179 +11621,92 @@
 /***/ function(module, exports, __webpack_require__) {
 
 	
-	module.exports =  __webpack_require__(62);
+	/**
+	 * HOP ref.
+	 */
 
+	var has = Object.prototype.hasOwnProperty;
+
+	/**
+	 * Return own keys in `obj`.
+	 *
+	 * @param {Object} obj
+	 * @return {Array}
+	 * @api public
+	 */
+
+	exports.keys = Object.keys || function(obj){
+	  var keys = [];
+	  for (var key in obj) {
+	    if (has.call(obj, key)) {
+	      keys.push(key);
+	    }
+	  }
+	  return keys;
+	};
+
+	/**
+	 * Return own values in `obj`.
+	 *
+	 * @param {Object} obj
+	 * @return {Array}
+	 * @api public
+	 */
+
+	exports.values = function(obj){
+	  var vals = [];
+	  for (var key in obj) {
+	    if (has.call(obj, key)) {
+	      vals.push(obj[key]);
+	    }
+	  }
+	  return vals;
+	};
+
+	/**
+	 * Merge `b` into `a`.
+	 *
+	 * @param {Object} a
+	 * @param {Object} b
+	 * @return {Object} a
+	 * @api public
+	 */
+
+	exports.merge = function(a, b){
+	  for (var key in b) {
+	    if (has.call(b, key)) {
+	      a[key] = b[key];
+	    }
+	  }
+	  return a;
+	};
+
+	/**
+	 * Return length of `obj`.
+	 *
+	 * @param {Object} obj
+	 * @return {Number}
+	 * @api public
+	 */
+
+	exports.length = function(obj){
+	  return exports.keys(obj).length;
+	};
+
+	/**
+	 * Check if `obj` is empty.
+	 *
+	 * @param {Object} obj
+	 * @return {Boolean}
+	 * @api public
+	 */
+
+	exports.isEmpty = function(obj){
+	  return 0 == exports.length(obj);
+	};
 
 /***/ },
 /* 50 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {/*global Blob,File*/
-
-	/**
-	 * Module requirements
-	 */
-
-	var isArray = __webpack_require__(59);
-	var isBuf = __webpack_require__(51);
-
-	/**
-	 * Replaces every Buffer | ArrayBuffer in packet with a numbered placeholder.
-	 * Anything with blobs or files should be fed through removeBlobs before coming
-	 * here.
-	 *
-	 * @param {Object} packet - socket.io event packet
-	 * @return {Object} with deconstructed packet and list of buffers
-	 * @api public
-	 */
-
-	exports.deconstructPacket = function(packet){
-	  var buffers = [];
-	  var packetData = packet.data;
-
-	  function _deconstructPacket(data) {
-	    if (!data) return data;
-
-	    if (isBuf(data)) {
-	      var placeholder = { _placeholder: true, num: buffers.length };
-	      buffers.push(data);
-	      return placeholder;
-	    } else if (isArray(data)) {
-	      var newData = new Array(data.length);
-	      for (var i = 0; i < data.length; i++) {
-	        newData[i] = _deconstructPacket(data[i]);
-	      }
-	      return newData;
-	    } else if ('object' == typeof data && !(data instanceof Date)) {
-	      var newData = {};
-	      for (var key in data) {
-	        newData[key] = _deconstructPacket(data[key]);
-	      }
-	      return newData;
-	    }
-	    return data;
-	  }
-
-	  var pack = packet;
-	  pack.data = _deconstructPacket(packetData);
-	  pack.attachments = buffers.length; // number of binary 'attachments'
-	  return {packet: pack, buffers: buffers};
-	};
-
-	/**
-	 * Reconstructs a binary packet from its placeholder packet and buffers
-	 *
-	 * @param {Object} packet - event packet with placeholders
-	 * @param {Array} buffers - binary buffers to put in placeholder positions
-	 * @return {Object} reconstructed packet
-	 * @api public
-	 */
-
-	exports.reconstructPacket = function(packet, buffers) {
-	  var curPlaceHolder = 0;
-
-	  function _reconstructPacket(data) {
-	    if (data && data._placeholder) {
-	      var buf = buffers[data.num]; // appropriate buffer (should be natural order anyway)
-	      return buf;
-	    } else if (isArray(data)) {
-	      for (var i = 0; i < data.length; i++) {
-	        data[i] = _reconstructPacket(data[i]);
-	      }
-	      return data;
-	    } else if (data && 'object' == typeof data) {
-	      for (var key in data) {
-	        data[key] = _reconstructPacket(data[key]);
-	      }
-	      return data;
-	    }
-	    return data;
-	  }
-
-	  packet.data = _reconstructPacket(packet.data);
-	  packet.attachments = undefined; // no longer useful
-	  return packet;
-	};
-
-	/**
-	 * Asynchronously removes Blobs or Files from data via
-	 * FileReader's readAsArrayBuffer method. Used before encoding
-	 * data as msgpack. Calls callback with the blobless data.
-	 *
-	 * @param {Object} data
-	 * @param {Function} callback
-	 * @api private
-	 */
-
-	exports.removeBlobs = function(data, callback) {
-	  function _removeBlobs(obj, curKey, containingObject) {
-	    if (!obj) return obj;
-
-	    // convert any blob
-	    if ((global.Blob && obj instanceof Blob) ||
-	        (global.File && obj instanceof File)) {
-	      pendingBlobs++;
-
-	      // async filereader
-	      var fileReader = new FileReader();
-	      fileReader.onload = function() { // this.result == arraybuffer
-	        if (containingObject) {
-	          containingObject[curKey] = this.result;
-	        }
-	        else {
-	          bloblessData = this.result;
-	        }
-
-	        // if nothing pending its callback time
-	        if(! --pendingBlobs) {
-	          callback(bloblessData);
-	        }
-	      };
-
-	      fileReader.readAsArrayBuffer(obj); // blob -> arraybuffer
-	    } else if (isArray(obj)) { // handle array
-	      for (var i = 0; i < obj.length; i++) {
-	        _removeBlobs(obj[i], i, obj);
-	      }
-	    } else if (obj && 'object' == typeof obj && !isBuf(obj)) { // and object
-	      for (var key in obj) {
-	        _removeBlobs(obj[key], key, obj);
-	      }
-	    }
-	  }
-
-	  var pendingBlobs = 0;
-	  var bloblessData = data;
-	  _removeBlobs(bloblessData);
-	  if (!pendingBlobs) {
-	    callback(bloblessData);
-	  }
-	};
-
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 51 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {
-	module.exports = isBuf;
-
-	/**
-	 * Returns true if obj is a buffer or an arraybuffer.
-	 *
-	 * @api private
-	 */
-
-	function isBuf(obj) {
-	  return (global.Buffer && global.Buffer.isBuffer(obj)) ||
-	         (global.ArrayBuffer && obj instanceof ArrayBuffer);
-	}
-
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 52 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -12100,125 +11876,106 @@
 
 
 /***/ },
-/* 53 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/**
-	 * Slice reference.
-	 */
-
-	var slice = [].slice;
-
-	/**
-	 * Bind `obj` to `fn`.
-	 *
-	 * @param {Object} obj
-	 * @param {Function|String} fn or string
-	 * @return {Function}
-	 * @api public
-	 */
-
-	module.exports = function(obj, fn){
-	  if ('string' == typeof fn) fn = obj[fn];
-	  if ('function' != typeof fn) throw new Error('bind() requires a function');
-	  var args = slice.call(arguments, 2);
-	  return function(){
-	    return fn.apply(obj, args.concat(slice.call(arguments)));
-	  }
-	};
-
-
-/***/ },
-/* 54 */
+/* 51 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
-	/**
-	 * HOP ref.
-	 */
+	var indexOf = [].indexOf;
 
-	var has = Object.prototype.hasOwnProperty;
-
-	/**
-	 * Return own keys in `obj`.
-	 *
-	 * @param {Object} obj
-	 * @return {Array}
-	 * @api public
-	 */
-
-	exports.keys = Object.keys || function(obj){
-	  var keys = [];
-	  for (var key in obj) {
-	    if (has.call(obj, key)) {
-	      keys.push(key);
-	    }
+	module.exports = function(arr, obj){
+	  if (indexOf) return arr.indexOf(obj);
+	  for (var i = 0; i < arr.length; ++i) {
+	    if (arr[i] === obj) return i;
 	  }
-	  return keys;
-	};
-
-	/**
-	 * Return own values in `obj`.
-	 *
-	 * @param {Object} obj
-	 * @return {Array}
-	 * @api public
-	 */
-
-	exports.values = function(obj){
-	  var vals = [];
-	  for (var key in obj) {
-	    if (has.call(obj, key)) {
-	      vals.push(obj[key]);
-	    }
-	  }
-	  return vals;
-	};
-
-	/**
-	 * Merge `b` into `a`.
-	 *
-	 * @param {Object} a
-	 * @param {Object} b
-	 * @return {Object} a
-	 * @api public
-	 */
-
-	exports.merge = function(a, b){
-	  for (var key in b) {
-	    if (has.call(b, key)) {
-	      a[key] = b[key];
-	    }
-	  }
-	  return a;
-	};
-
-	/**
-	 * Return length of `obj`.
-	 *
-	 * @param {Object} obj
-	 * @return {Number}
-	 * @api public
-	 */
-
-	exports.length = function(obj){
-	  return exports.keys(obj).length;
-	};
-
-	/**
-	 * Check if `obj` is empty.
-	 *
-	 * @param {Object} obj
-	 * @return {Boolean}
-	 * @api public
-	 */
-
-	exports.isEmpty = function(obj){
-	  return 0 == exports.length(obj);
+	  return -1;
 	};
 
 /***/ },
-/* 55 */
+/* 52 */
+/***/ function(module, exports, __webpack_require__) {
+
+	module.exports = toArray
+
+	function toArray(list, index) {
+	    var array = []
+
+	    index = index || 0
+
+	    for (var i = index || 0; i < list.length; i++) {
+	        array[i - index] = list[i]
+	    }
+
+	    return array
+	}
+
+
+/***/ },
+/* 53 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(global) {
+	/*
+	 * Module requirements.
+	 */
+
+	var isArray = __webpack_require__(60);
+
+	/**
+	 * Module exports.
+	 */
+
+	module.exports = hasBinary;
+
+	/**
+	 * Checks for binary data.
+	 *
+	 * Right now only Buffer and ArrayBuffer are supported..
+	 *
+	 * @param {Object} anything
+	 * @api public
+	 */
+
+	function hasBinary(data) {
+
+	  function _hasBinary(obj) {
+	    if (!obj) return false;
+
+	    if ( (global.Buffer && global.Buffer.isBuffer(obj)) ||
+	         (global.ArrayBuffer && obj instanceof ArrayBuffer) ||
+	         (global.Blob && obj instanceof Blob) ||
+	         (global.File && obj instanceof File)
+	        ) {
+	      return true;
+	    }
+
+	    if (isArray(obj)) {
+	      for (var i = 0; i < obj.length; i++) {
+	          if (_hasBinary(obj[i])) {
+	              return true;
+	          }
+	      }
+	    } else if (obj && 'object' == typeof obj) {
+	      if (obj.toJSON) {
+	        obj = obj.toJSON();
+	      }
+
+	      for (var key in obj) {
+	        if (Object.prototype.hasOwnProperty.call(obj, key) && _hasBinary(obj[key])) {
+	          return true;
+	        }
+	      }
+	    }
+
+	    return false;
+	  }
+
+	  return _hasBinary(data);
+	}
+
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 54 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -12309,106 +12066,365 @@
 
 
 /***/ },
+/* 55 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/**
+	 * Parses an URI
+	 *
+	 * @author Steven Levithan <stevenlevithan.com> (MIT license)
+	 * @api private
+	 */
+
+	var re = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+
+	var parts = [
+	    'source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host'
+	  , 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'
+	];
+
+	module.exports = function parseuri(str) {
+	  var m = re.exec(str || '')
+	    , uri = {}
+	    , i = 14;
+
+	  while (i--) {
+	    uri[parts[i]] = m[i] || '';
+	  }
+
+	  return uri;
+	};
+
+
+/***/ },
 /* 56 */
 /***/ function(module, exports, __webpack_require__) {
 
-	
-	var indexOf = [].indexOf;
+	/* WEBPACK VAR INJECTION */(function(global) {/*global Blob,File*/
 
-	module.exports = function(arr, obj){
-	  if (indexOf) return arr.indexOf(obj);
-	  for (var i = 0; i < arr.length; ++i) {
-	    if (arr[i] === obj) return i;
+	/**
+	 * Module requirements
+	 */
+
+	var isArray = __webpack_require__(60);
+	var isBuf = __webpack_require__(57);
+
+	/**
+	 * Replaces every Buffer | ArrayBuffer in packet with a numbered placeholder.
+	 * Anything with blobs or files should be fed through removeBlobs before coming
+	 * here.
+	 *
+	 * @param {Object} packet - socket.io event packet
+	 * @return {Object} with deconstructed packet and list of buffers
+	 * @api public
+	 */
+
+	exports.deconstructPacket = function(packet){
+	  var buffers = [];
+	  var packetData = packet.data;
+
+	  function _deconstructPacket(data) {
+	    if (!data) return data;
+
+	    if (isBuf(data)) {
+	      var placeholder = { _placeholder: true, num: buffers.length };
+	      buffers.push(data);
+	      return placeholder;
+	    } else if (isArray(data)) {
+	      var newData = new Array(data.length);
+	      for (var i = 0; i < data.length; i++) {
+	        newData[i] = _deconstructPacket(data[i]);
+	      }
+	      return newData;
+	    } else if ('object' == typeof data && !(data instanceof Date)) {
+	      var newData = {};
+	      for (var key in data) {
+	        newData[key] = _deconstructPacket(data[key]);
+	      }
+	      return newData;
+	    }
+	    return data;
 	  }
-	  return -1;
+
+	  var pack = packet;
+	  pack.data = _deconstructPacket(packetData);
+	  pack.attachments = buffers.length; // number of binary 'attachments'
+	  return {packet: pack, buffers: buffers};
 	};
+
+	/**
+	 * Reconstructs a binary packet from its placeholder packet and buffers
+	 *
+	 * @param {Object} packet - event packet with placeholders
+	 * @param {Array} buffers - binary buffers to put in placeholder positions
+	 * @return {Object} reconstructed packet
+	 * @api public
+	 */
+
+	exports.reconstructPacket = function(packet, buffers) {
+	  var curPlaceHolder = 0;
+
+	  function _reconstructPacket(data) {
+	    if (data && data._placeholder) {
+	      var buf = buffers[data.num]; // appropriate buffer (should be natural order anyway)
+	      return buf;
+	    } else if (isArray(data)) {
+	      for (var i = 0; i < data.length; i++) {
+	        data[i] = _reconstructPacket(data[i]);
+	      }
+	      return data;
+	    } else if (data && 'object' == typeof data) {
+	      for (var key in data) {
+	        data[key] = _reconstructPacket(data[key]);
+	      }
+	      return data;
+	    }
+	    return data;
+	  }
+
+	  packet.data = _reconstructPacket(packet.data);
+	  packet.attachments = undefined; // no longer useful
+	  return packet;
+	};
+
+	/**
+	 * Asynchronously removes Blobs or Files from data via
+	 * FileReader's readAsArrayBuffer method. Used before encoding
+	 * data as msgpack. Calls callback with the blobless data.
+	 *
+	 * @param {Object} data
+	 * @param {Function} callback
+	 * @api private
+	 */
+
+	exports.removeBlobs = function(data, callback) {
+	  function _removeBlobs(obj, curKey, containingObject) {
+	    if (!obj) return obj;
+
+	    // convert any blob
+	    if ((global.Blob && obj instanceof Blob) ||
+	        (global.File && obj instanceof File)) {
+	      pendingBlobs++;
+
+	      // async filereader
+	      var fileReader = new FileReader();
+	      fileReader.onload = function() { // this.result == arraybuffer
+	        if (containingObject) {
+	          containingObject[curKey] = this.result;
+	        }
+	        else {
+	          bloblessData = this.result;
+	        }
+
+	        // if nothing pending its callback time
+	        if(! --pendingBlobs) {
+	          callback(bloblessData);
+	        }
+	      };
+
+	      fileReader.readAsArrayBuffer(obj); // blob -> arraybuffer
+	    } else if (isArray(obj)) { // handle array
+	      for (var i = 0; i < obj.length; i++) {
+	        _removeBlobs(obj[i], i, obj);
+	      }
+	    } else if (obj && 'object' == typeof obj && !isBuf(obj)) { // and object
+	      for (var key in obj) {
+	        _removeBlobs(obj[key], key, obj);
+	      }
+	    }
+	  }
+
+	  var pendingBlobs = 0;
+	  var bloblessData = data;
+	  _removeBlobs(bloblessData);
+	  if (!pendingBlobs) {
+	    callback(bloblessData);
+	  }
+	};
+
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
 /* 57 */
 /***/ function(module, exports, __webpack_require__) {
 
-	module.exports = toArray
-
-	function toArray(list, index) {
-	    var array = []
-
-	    index = index || 0
-
-	    for (var i = index || 0; i < list.length; i++) {
-	        array[i - index] = list[i]
-	    }
-
-	    return array
-	}
-
-
-/***/ },
-/* 58 */
-/***/ function(module, exports, __webpack_require__) {
-
 	/* WEBPACK VAR INJECTION */(function(global) {
-	/*
-	 * Module requirements.
-	 */
-
-	var isArray = __webpack_require__(59);
+	module.exports = isBuf;
 
 	/**
-	 * Module exports.
+	 * Returns true if obj is a buffer or an arraybuffer.
+	 *
+	 * @api private
 	 */
 
-	module.exports = hasBinary;
-
-	/**
-	 * Checks for binary data.
-	 *
-	 * Right now only Buffer and ArrayBuffer are supported..
-	 *
-	 * @param {Object} anything
-	 * @api public
-	 */
-
-	function hasBinary(data) {
-
-	  function _hasBinary(obj) {
-	    if (!obj) return false;
-
-	    if ( (global.Buffer && global.Buffer.isBuffer(obj)) ||
-	         (global.ArrayBuffer && obj instanceof ArrayBuffer) ||
-	         (global.Blob && obj instanceof Blob) ||
-	         (global.File && obj instanceof File)
-	        ) {
-	      return true;
-	    }
-
-	    if (isArray(obj)) {
-	      for (var i = 0; i < obj.length; i++) {
-	          if (_hasBinary(obj[i])) {
-	              return true;
-	          }
-	      }
-	    } else if (obj && 'object' == typeof obj) {
-	      if (obj.toJSON) {
-	        obj = obj.toJSON();
-	      }
-
-	      for (var key in obj) {
-	        if (Object.prototype.hasOwnProperty.call(obj, key) && _hasBinary(obj[key])) {
-	          return true;
-	        }
-	      }
-	    }
-
-	    return false;
-	  }
-
-	  return _hasBinary(data);
+	function isBuf(obj) {
+	  return (global.Buffer && global.Buffer.isBuffer(obj)) ||
+	         (global.ArrayBuffer && obj instanceof ArrayBuffer);
 	}
 
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
+/* 58 */
+/***/ function(module, exports, __webpack_require__) {
+
+	
+	/**
+	 * Expose `debug()` as the module.
+	 */
+
+	module.exports = debug;
+
+	/**
+	 * Create a debugger with the given `name`.
+	 *
+	 * @param {String} name
+	 * @return {Type}
+	 * @api public
+	 */
+
+	function debug(name) {
+	  if (!debug.enabled(name)) return function(){};
+
+	  return function(fmt){
+	    fmt = coerce(fmt);
+
+	    var curr = new Date;
+	    var ms = curr - (debug[name] || curr);
+	    debug[name] = curr;
+
+	    fmt = name
+	      + ' '
+	      + fmt
+	      + ' +' + debug.humanize(ms);
+
+	    // This hackery is required for IE8
+	    // where `console.log` doesn't have 'apply'
+	    window.console
+	      && console.log
+	      && Function.prototype.apply.call(console.log, console, arguments);
+	  }
+	}
+
+	/**
+	 * The currently active debug mode names.
+	 */
+
+	debug.names = [];
+	debug.skips = [];
+
+	/**
+	 * Enables a debug mode by name. This can include modes
+	 * separated by a colon and wildcards.
+	 *
+	 * @param {String} name
+	 * @api public
+	 */
+
+	debug.enable = function(name) {
+	  try {
+	    localStorage.debug = name;
+	  } catch(e){}
+
+	  var split = (name || '').split(/[\s,]+/)
+	    , len = split.length;
+
+	  for (var i = 0; i < len; i++) {
+	    name = split[i].replace('*', '.*?');
+	    if (name[0] === '-') {
+	      debug.skips.push(new RegExp('^' + name.substr(1) + '$'));
+	    }
+	    else {
+	      debug.names.push(new RegExp('^' + name + '$'));
+	    }
+	  }
+	};
+
+	/**
+	 * Disable debug output.
+	 *
+	 * @api public
+	 */
+
+	debug.disable = function(){
+	  debug.enable('');
+	};
+
+	/**
+	 * Humanize the given `ms`.
+	 *
+	 * @param {Number} m
+	 * @return {String}
+	 * @api private
+	 */
+
+	debug.humanize = function(ms) {
+	  var sec = 1000
+	    , min = 60 * 1000
+	    , hour = 60 * min;
+
+	  if (ms >= hour) return (ms / hour).toFixed(1) + 'h';
+	  if (ms >= min) return (ms / min).toFixed(1) + 'm';
+	  if (ms >= sec) return (ms / sec | 0) + 's';
+	  return ms + 'ms';
+	};
+
+	/**
+	 * Returns true if the given mode name is enabled, false otherwise.
+	 *
+	 * @param {String} name
+	 * @return {Boolean}
+	 * @api public
+	 */
+
+	debug.enabled = function(name) {
+	  for (var i = 0, len = debug.skips.length; i < len; i++) {
+	    if (debug.skips[i].test(name)) {
+	      return false;
+	    }
+	  }
+	  for (var i = 0, len = debug.names.length; i < len; i++) {
+	    if (debug.names[i].test(name)) {
+	      return true;
+	    }
+	  }
+	  return false;
+	};
+
+	/**
+	 * Coerce `val`.
+	 */
+
+	function coerce(val) {
+	  if (val instanceof Error) return val.stack || val.message;
+	  return val;
+	}
+
+	// persist
+
+	try {
+	  if (window.localStorage) debug.enable(localStorage.debug);
+	} catch(e){}
+
+
+/***/ },
 /* 59 */
+/***/ function(module, exports, __webpack_require__) {
+
+	
+	module.exports = __webpack_require__(63);
+
+	/**
+	 * Exports parser
+	 *
+	 * @api public
+	 *
+	 */
+	module.exports.parser = __webpack_require__(64);
+
+
+/***/ },
+/* 60 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = Array.isArray || function (arr) {
@@ -12417,7 +12433,7 @@
 
 
 /***/ },
-/* 60 */
+/* 61 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_RESULT__;/*! JSON v3.2.6 | http://bestiejs.github.io/json3 | Copyright 2012-2013, Kit Cambridge | http://kit.mit-license.org */
@@ -12427,7 +12443,7 @@
 
 	  // Detect the `define` function exposed by asynchronous module loaders. The
 	  // strict `define` check is necessary for compatibility with `r.js`.
-	  var isLoader = "function" === "function" && __webpack_require__(64);
+	  var isLoader = "function" === "function" && __webpack_require__(67);
 
 	  // Detect native implementations.
 	  var nativeJSON = typeof JSON == "object" && JSON;
@@ -13284,7 +13300,7 @@
 
 
 /***/ },
-/* 61 */
+/* 62 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -13427,22 +13443,6 @@
 
 
 /***/ },
-/* 62 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	module.exports = __webpack_require__(63);
-
-	/**
-	 * Exports parser
-	 *
-	 * @api public
-	 *
-	 */
-	module.exports.parser = __webpack_require__(65);
-
-
-/***/ },
 /* 63 */
 /***/ function(module, exports, __webpack_require__) {
 
@@ -13450,14 +13450,14 @@
 	 * Module dependencies.
 	 */
 
-	var transports = __webpack_require__(67);
-	var Emitter = __webpack_require__(52);
-	var debug = __webpack_require__(73)('engine.io-client:socket');
-	var index = __webpack_require__(56);
-	var parser = __webpack_require__(65);
-	var parseuri = __webpack_require__(68);
-	var parsejson = __webpack_require__(69);
-	var parseqs = __webpack_require__(70);
+	var transports = __webpack_require__(66);
+	var Emitter = __webpack_require__(50);
+	var debug = __webpack_require__(69)('engine.io-client:socket');
+	var index = __webpack_require__(51);
+	var parser = __webpack_require__(64);
+	var parseuri = __webpack_require__(70);
+	var parsejson = __webpack_require__(72);
+	var parseqs = __webpack_require__(71);
 
 	/**
 	 * Module exports.
@@ -13572,9 +13572,9 @@
 	 */
 
 	Socket.Socket = Socket;
-	Socket.Transport = __webpack_require__(66);
-	Socket.transports = __webpack_require__(67);
-	Socket.parser = __webpack_require__(65);
+	Socket.Transport = __webpack_require__(65);
+	Socket.transports = __webpack_require__(66);
+	Socket.parser = __webpack_require__(64);
 
 	/**
 	 * Creates transport of the given type.
@@ -14158,20 +14158,12 @@
 /* 64 */
 /***/ function(module, exports, __webpack_require__) {
 
-	/* WEBPACK VAR INJECTION */(function(__webpack_amd_options__) {module.exports = __webpack_amd_options__;
-
-	/* WEBPACK VAR INJECTION */}.call(exports, {}))
-
-/***/ },
-/* 65 */
-/***/ function(module, exports, __webpack_require__) {
-
 	/* WEBPACK VAR INJECTION */(function(global) {/**
 	 * Module dependencies.
 	 */
 
-	var keys = __webpack_require__(72);
-	var hasBinary = __webpack_require__(71);
+	var keys = __webpack_require__(73);
+	var hasBinary = __webpack_require__(68);
 	var sliceBuffer = __webpack_require__(78);
 	var base64encoder = __webpack_require__(81);
 	var after = __webpack_require__(79);
@@ -14764,15 +14756,15 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 66 */
+/* 65 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
 	 * Module dependencies.
 	 */
 
-	var parser = __webpack_require__(65);
-	var Emitter = __webpack_require__(52);
+	var parser = __webpack_require__(64);
+	var Emitter = __webpack_require__(50);
 
 	/**
 	 * Module exports.
@@ -14929,7 +14921,7 @@
 
 
 /***/ },
-/* 67 */
+/* 66 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {/**
@@ -14989,133 +14981,15 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
+/* 67 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(__webpack_amd_options__) {module.exports = __webpack_amd_options__;
+
+	/* WEBPACK VAR INJECTION */}.call(exports, {}))
+
+/***/ },
 /* 68 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/**
-	 * Parses an URI
-	 *
-	 * @author Steven Levithan <stevenlevithan.com> (MIT license)
-	 * @api private
-	 */
-
-	var re = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
-
-	var parts = [
-	    'source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'
-	];
-
-	module.exports = function parseuri(str) {
-	    var src = str,
-	        b = str.indexOf('['),
-	        e = str.indexOf(']');
-
-	    if (b != -1 && e != -1) {
-	        str = str.substring(0, b) + str.substring(b, e).replace(/:/g, ';') + str.substring(e, str.length);
-	    }
-
-	    var m = re.exec(str || ''),
-	        uri = {},
-	        i = 14;
-
-	    while (i--) {
-	        uri[parts[i]] = m[i] || '';
-	    }
-
-	    if (b != -1 && e != -1) {
-	        uri.source = src;
-	        uri.host = uri.host.substring(1, uri.host.length - 1).replace(/;/g, ':');
-	        uri.authority = uri.authority.replace('[', '').replace(']', '').replace(/;/g, ':');
-	        uri.ipv6uri = true;
-	    }
-
-	    return uri;
-	};
-
-
-/***/ },
-/* 69 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {/**
-	 * JSON parse.
-	 *
-	 * @see Based on jQuery#parseJSON (MIT) and JSON2
-	 * @api private
-	 */
-
-	var rvalidchars = /^[\],:{}\s]*$/;
-	var rvalidescape = /\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g;
-	var rvalidtokens = /"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g;
-	var rvalidbraces = /(?:^|:|,)(?:\s*\[)+/g;
-	var rtrimLeft = /^\s+/;
-	var rtrimRight = /\s+$/;
-
-	module.exports = function parsejson(data) {
-	  if ('string' != typeof data || !data) {
-	    return null;
-	  }
-
-	  data = data.replace(rtrimLeft, '').replace(rtrimRight, '');
-
-	  // Attempt to parse using the native JSON parser first
-	  if (global.JSON && JSON.parse) {
-	    return JSON.parse(data);
-	  }
-
-	  if (rvalidchars.test(data.replace(rvalidescape, '@')
-	      .replace(rvalidtokens, ']')
-	      .replace(rvalidbraces, ''))) {
-	    return (new Function('return ' + data))();
-	  }
-	};
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 70 */
-/***/ function(module, exports, __webpack_require__) {
-
-	/**
-	 * Compiles a querystring
-	 * Returns string representation of the object
-	 *
-	 * @param {Object}
-	 * @api private
-	 */
-
-	exports.encode = function (obj) {
-	  var str = '';
-
-	  for (var i in obj) {
-	    if (obj.hasOwnProperty(i)) {
-	      if (str.length) str += '&';
-	      str += encodeURIComponent(i) + '=' + encodeURIComponent(obj[i]);
-	    }
-	  }
-
-	  return str;
-	};
-
-	/**
-	 * Parses a simple querystring into an object
-	 *
-	 * @param {String} qs
-	 * @api private
-	 */
-
-	exports.decode = function(qs){
-	  var qry = {};
-	  var pairs = qs.split('&');
-	  for (var i = 0, l = pairs.length; i < l; i++) {
-	    var pair = pairs[i].split('=');
-	    qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-	  }
-	  return qry;
-	};
-
-
-/***/ },
-/* 71 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global) {
@@ -15123,7 +14997,7 @@
 	 * Module requirements.
 	 */
 
-	var isArray = __webpack_require__(59);
+	var isArray = __webpack_require__(60);
 
 	/**
 	 * Module exports.
@@ -15180,32 +15054,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
 
 /***/ },
-/* 72 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	/**
-	 * Gets the keys for an object.
-	 *
-	 * @return {Array} keys
-	 * @api private
-	 */
-
-	module.exports = Object.keys || function keys (obj){
-	  var arr = [];
-	  var has = Object.prototype.hasOwnProperty;
-
-	  for (var i in obj) {
-	    if (has.call(obj, i)) {
-	      arr.push(i);
-	    }
-	  }
-	  return arr;
-	};
-
-
-/***/ },
-/* 73 */
+/* 69 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -15358,6 +15207,157 @@
 
 
 /***/ },
+/* 70 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/**
+	 * Parses an URI
+	 *
+	 * @author Steven Levithan <stevenlevithan.com> (MIT license)
+	 * @api private
+	 */
+
+	var re = /^(?:(?![^:@]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+
+	var parts = [
+	    'source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'
+	];
+
+	module.exports = function parseuri(str) {
+	    var src = str,
+	        b = str.indexOf('['),
+	        e = str.indexOf(']');
+
+	    if (b != -1 && e != -1) {
+	        str = str.substring(0, b) + str.substring(b, e).replace(/:/g, ';') + str.substring(e, str.length);
+	    }
+
+	    var m = re.exec(str || ''),
+	        uri = {},
+	        i = 14;
+
+	    while (i--) {
+	        uri[parts[i]] = m[i] || '';
+	    }
+
+	    if (b != -1 && e != -1) {
+	        uri.source = src;
+	        uri.host = uri.host.substring(1, uri.host.length - 1).replace(/;/g, ':');
+	        uri.authority = uri.authority.replace('[', '').replace(']', '').replace(/;/g, ':');
+	        uri.ipv6uri = true;
+	    }
+
+	    return uri;
+	};
+
+
+/***/ },
+/* 71 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/**
+	 * Compiles a querystring
+	 * Returns string representation of the object
+	 *
+	 * @param {Object}
+	 * @api private
+	 */
+
+	exports.encode = function (obj) {
+	  var str = '';
+
+	  for (var i in obj) {
+	    if (obj.hasOwnProperty(i)) {
+	      if (str.length) str += '&';
+	      str += encodeURIComponent(i) + '=' + encodeURIComponent(obj[i]);
+	    }
+	  }
+
+	  return str;
+	};
+
+	/**
+	 * Parses a simple querystring into an object
+	 *
+	 * @param {String} qs
+	 * @api private
+	 */
+
+	exports.decode = function(qs){
+	  var qry = {};
+	  var pairs = qs.split('&');
+	  for (var i = 0, l = pairs.length; i < l; i++) {
+	    var pair = pairs[i].split('=');
+	    qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+	  }
+	  return qry;
+	};
+
+
+/***/ },
+/* 72 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(global) {/**
+	 * JSON parse.
+	 *
+	 * @see Based on jQuery#parseJSON (MIT) and JSON2
+	 * @api private
+	 */
+
+	var rvalidchars = /^[\],:{}\s]*$/;
+	var rvalidescape = /\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g;
+	var rvalidtokens = /"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g;
+	var rvalidbraces = /(?:^|:|,)(?:\s*\[)+/g;
+	var rtrimLeft = /^\s+/;
+	var rtrimRight = /\s+$/;
+
+	module.exports = function parsejson(data) {
+	  if ('string' != typeof data || !data) {
+	    return null;
+	  }
+
+	  data = data.replace(rtrimLeft, '').replace(rtrimRight, '');
+
+	  // Attempt to parse using the native JSON parser first
+	  if (global.JSON && JSON.parse) {
+	    return JSON.parse(data);
+	  }
+
+	  if (rvalidchars.test(data.replace(rvalidescape, '@')
+	      .replace(rvalidtokens, ']')
+	      .replace(rvalidbraces, ''))) {
+	    return (new Function('return ' + data))();
+	  }
+	};
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 73 */
+/***/ function(module, exports, __webpack_require__) {
+
+	
+	/**
+	 * Gets the keys for an object.
+	 *
+	 * @return {Array} keys
+	 * @api private
+	 */
+
+	module.exports = Object.keys || function keys (obj){
+	  var arr = [];
+	  var has = Object.prototype.hasOwnProperty;
+
+	  for (var i in obj) {
+	    if (has.call(obj, i)) {
+	      arr.push(i);
+	    }
+	  }
+	  return arr;
+	};
+
+
+/***/ },
 /* 74 */
 /***/ function(module, exports, __webpack_require__) {
 
@@ -15409,9 +15409,9 @@
 
 	var XMLHttpRequest = __webpack_require__(74);
 	var Polling = __webpack_require__(84);
-	var Emitter = __webpack_require__(52);
+	var Emitter = __webpack_require__(50);
 	var inherit = __webpack_require__(86);
-	var debug = __webpack_require__(73)('engine.io-client:polling-xhr');
+	var debug = __webpack_require__(69)('engine.io-client:polling-xhr');
 
 	/**
 	 * Module exports.
@@ -16038,11 +16038,11 @@
 	 * Module dependencies.
 	 */
 
-	var Transport = __webpack_require__(66);
-	var parser = __webpack_require__(65);
-	var parseqs = __webpack_require__(70);
+	var Transport = __webpack_require__(65);
+	var parser = __webpack_require__(64);
+	var parseqs = __webpack_require__(71);
 	var inherit = __webpack_require__(86);
-	var debug = __webpack_require__(73)('engine.io-client:websocket');
+	var debug = __webpack_require__(69)('engine.io-client:websocket');
 
 	/**
 	 * `ws` exposes a WebSocket-compatible interface in
@@ -16050,7 +16050,7 @@
 	 * in the browser.
 	 */
 
-	var WebSocket = __webpack_require__(88);
+	var WebSocket = __webpack_require__(87);
 
 	/**
 	 * Module exports.
@@ -16706,7 +16706,7 @@
 
 	}(this));
 
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(87)(module), (function() { return this; }())))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(90)(module), (function() { return this; }())))
 
 /***/ },
 /* 83 */
@@ -16725,7 +16725,7 @@
 	exports.disable = disable;
 	exports.enable = enable;
 	exports.enabled = enabled;
-	exports.humanize = __webpack_require__(89);
+	exports.humanize = __webpack_require__(88);
 
 	/**
 	 * The currently active debug mode names, and names to skip.
@@ -16919,11 +16919,11 @@
 	 * Module dependencies.
 	 */
 
-	var Transport = __webpack_require__(66);
-	var parseqs = __webpack_require__(70);
-	var parser = __webpack_require__(65);
+	var Transport = __webpack_require__(65);
+	var parseqs = __webpack_require__(71);
+	var parser = __webpack_require__(64);
 	var inherit = __webpack_require__(86);
-	var debug = __webpack_require__(73)('engine.io-client:polling');
+	var debug = __webpack_require__(69)('engine.io-client:polling');
 
 	/**
 	 * Module exports.
@@ -17171,7 +17171,7 @@
 	 * Module dependencies.
 	 */
 
-	var global = __webpack_require__(90);
+	var global = __webpack_require__(89);
 
 	/**
 	 * Module exports.
@@ -17205,22 +17205,6 @@
 
 /***/ },
 /* 87 */
-/***/ function(module, exports, __webpack_require__) {
-
-	module.exports = function(module) {
-		if(!module.webpackPolyfill) {
-			module.deprecate = function() {};
-			module.paths = [];
-			// module.parent = undefined by default
-			module.children = [];
-			module.webpackPolyfill = 1;
-		}
-		return module;
-	}
-
-
-/***/ },
-/* 88 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -17269,7 +17253,7 @@
 
 
 /***/ },
-/* 89 */
+/* 88 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -17386,7 +17370,7 @@
 
 
 /***/ },
-/* 90 */
+/* 89 */
 /***/ function(module, exports, __webpack_require__) {
 
 	
@@ -17397,6 +17381,22 @@
 	 */
 
 	module.exports = (function () { return this; })();
+
+
+/***/ },
+/* 90 */
+/***/ function(module, exports, __webpack_require__) {
+
+	module.exports = function(module) {
+		if(!module.webpackPolyfill) {
+			module.deprecate = function() {};
+			module.paths = [];
+			// module.parent = undefined by default
+			module.children = [];
+			module.webpackPolyfill = 1;
+		}
+		return module;
+	}
 
 
 /***/ }

@@ -131,6 +131,10 @@ The `client-example/client.html` file is an example of a possible client.
 
 # Copyright and License
 
-Copyright 2015 Bruno Faria, Instituto de Telecomunicações
+Copyright 2015 Bruno Faria, Instituto de Telecomunicações, Wavecom
 
 Licensed under the GPLv3
+
+# Acknowledgements
+
+![alt text](https://github.com/bmcfaria/webrtc-chord-platform/raw/master/src/images/logos.png "Acknowledgements")
