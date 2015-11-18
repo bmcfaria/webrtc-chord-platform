@@ -137,4 +137,4 @@ Licensed under the GPLv3
 
 # Acknowledgements
 
-![alt text](https://github.com/bmcfaria/webrtc-chord-platform/raw/master/src/images/logos.png "Acknowledgements")
+![alt text](https://raw.githubusercontent.com/bmcfaria/webrtc-chord-platform/master/acknowledgements/logos.png "Acknowledgements")
